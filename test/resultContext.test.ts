@@ -42,4 +42,9 @@ describe("formatResultContext", () => {
     const block = formatResultContext(result({ displayPath: "Makefile", preview: "all:\n\tgo build" }));
     expect(block).toBe("`Makefile:10-14`\n```\nall:\n\tgo build\n```\n");
   });
+
+  test("uses a longer fence when the preview contains backticks", () => {
+    const block = formatResultContext(result({ displayPath: "a.md", preview: "```js\ncode\n```" }));
+    expect(block).toBe("`a.md:10-14`\n````markdown\n```js\ncode\n```\n````\n");
+  });
 });

@@ -353,7 +353,7 @@ export function init(vscode, doc = document) {
       query.focus();
       return;
     }
-    if (event.key === "Enter") {
+    if (event.key === "Enter" || event.key === " ") {
       const focused = doc.activeElement;
       if (focused && focused.classList.contains("result")) {
         event.preventDefault();

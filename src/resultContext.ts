@@ -17,8 +17,19 @@ export function languageForPath(displayPath: string): string {
   return LANGUAGE_BY_EXTENSION[match[1].toLowerCase()] ?? "";
 }
 
+function fenceFor(content: string): string {
+  let longest = 0;
+  const runs = content.match(/`+/g);
+  if (runs) {
+    for (const run of runs) {
+      longest = Math.max(longest, run.length);
+    }
+  }
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
 export function formatResultContext(result: NormalizedGrepaiResult): string {
   const header = "`" + result.displayPath + ":" + result.startLine + "-" + result.endLine + "`";
-  const fence = "```" + languageForPath(result.displayPath);
-  return header + "\n" + fence + "\n" + result.preview + "\n```\n";
+  const fence = fenceFor(result.preview);
+  return header + "\n" + fence + languageForPath(result.displayPath) + "\n" + result.preview + "\n" + fence + "\n";
 }

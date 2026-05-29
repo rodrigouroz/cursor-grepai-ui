@@ -831,4 +831,15 @@ describe("result actions", () => {
     card.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(vscode.posted).toContainEqual({ type: "openResult", id: "0", mode: "preview" });
   });
+
+  test("Space key on a focused card activates it (same as Enter, mode=active)", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+
+    const card = document.querySelector(".result") as HTMLElement;
+    card.focus();
+    card.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+
+    expect(vscode.posted).toContainEqual({ type: "openResult", id: "0", mode: "active" });
+  });
 });
