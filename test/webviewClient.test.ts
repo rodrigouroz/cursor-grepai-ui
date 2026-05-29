@@ -179,14 +179,14 @@ describe("index health badge", () => {
           type: "status",
           folderId: "",
           indexed: true,
-          detail: "Index ready · not auto-updating · last indexed 2h ago",
+          detail: "Index ready · last indexed 2h ago",
         },
       }),
     );
 
     const badge = document.getElementById("badge")!;
     expect(badge.hidden).toBe(false);
-    expect(badge.textContent).toBe("Index ready · not auto-updating · last indexed 2h ago");
+    expect(badge.textContent).toBe("Index ready · last indexed 2h ago");
     // The extension observes the index but never offers to manage the watcher.
     expect(badge.querySelector("button")).toBeNull();
     expect(vscode.posted).not.toContainEqual(expect.objectContaining({ type: "startWatcher" }));

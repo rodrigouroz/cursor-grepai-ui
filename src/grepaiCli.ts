@@ -30,10 +30,6 @@ export function isFolderIndexed(out: ProcessOutput): boolean {
   return out.exitCode === 0 && parseLocalStatus(out.stdout).filesIndexed > 0;
 }
 
-export function buildWatchStatusArgs(): string[] {
-  return ["watch", "--status"];
-}
-
 export interface TraceArgsInput {
   direction: "callers" | "callees" | "graph";
   symbol: string;
@@ -53,19 +49,16 @@ export interface LocalStatus {
   indexed: boolean;
   filesIndexed: number;
   lastUpdated: string;
-  watcherRunning: boolean;
 }
 
 export function parseLocalStatus(text: string): LocalStatus {
   const files = /Files indexed:\s*(\d+)/i.exec(text);
   const updated = /Last updated:\s*(.+)/i.exec(text);
-  const watcher = /Watcher:\s*(.+)/i.exec(text);
   const filesIndexed = files ? Number(files[1]) : 0;
   return {
     indexed: filesIndexed > 0,
     filesIndexed,
     lastUpdated: updated ? updated[1].trim() : "Never",
-    watcherRunning: watcher ? /running/i.test(watcher[1]) && !/not running/i.test(watcher[1]) : false,
   };
 }
 

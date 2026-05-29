@@ -77,16 +77,9 @@ describe("normalizePreview", () => {
 });
 
 import {
-  buildWatchStatusArgs,
   isFolderIndexed,
   parseLocalStatus,
 } from "../src/grepaiCli";
-
-describe("status/watch arg builders", () => {
-  test("watch status takes no arguments", () => {
-    expect(buildWatchStatusArgs()).toEqual(["watch", "--status"]);
-  });
-});
 
 describe("isFolderIndexed", () => {
   test("true when exit 0 and files indexed > 0", () => {
@@ -109,31 +102,28 @@ describe("isFolderIndexed", () => {
 });
 
 describe("parseLocalStatus", () => {
-  test("extracts indexed count, last updated, watcher state", () => {
+  test("extracts indexed count and last updated", () => {
     const text = [
       "grepai index status",
       "Files indexed: 142",
       "Total chunks: 980",
       "Last updated: 2 hours ago",
-      "Watcher: running",
     ].join("\n");
 
     expect(parseLocalStatus(text)).toEqual({
       indexed: true,
       filesIndexed: 142,
       lastUpdated: "2 hours ago",
-      watcherRunning: true,
     });
   });
 
-  test("treats zero files / Never / not running as not indexed", () => {
-    const text = ["Files indexed: 0", "Last updated: Never", "Watcher: not running"].join("\n");
+  test("treats zero files / Never as not indexed", () => {
+    const text = ["Files indexed: 0", "Last updated: Never"].join("\n");
 
     expect(parseLocalStatus(text)).toEqual({
       indexed: false,
       filesIndexed: 0,
       lastUpdated: "Never",
-      watcherRunning: false,
     });
   });
 });

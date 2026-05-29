@@ -11,7 +11,7 @@ explore the call graph — without leaving the editor.
 - **Multi-root aware**: when several folders are open, a small folder selector lets you pick which one to search.
 - **Relative score bars** with a one-glance Strong/Good/Weak label per result.
 - **Search history** autocomplete, **keyboard navigation** (arrows / Enter / Esc), and **open modes** (single-click preview, Cmd/Ctrl-click pin, Alt-click split).
-- **Index-health badge** showing whether the folder is indexed, when it was last indexed, and whether the index is auto-updating (read-only — managing the grepai watcher is left to you).
+- **Index-health badge** (read-only) showing whether the folder is indexed and when it was last updated. It does not report watcher state — `grepai watch --status` can't see launchd/foreground watchers, so any "auto-updating" claim would be unreliable. Managing the grepai watcher is left to you.
 - **Opt-in live search** (debounced, type-to-search).
 - **Syntax-highlighted previews** and collapsible **group-by-file** results.
 - **Call graph panel**: trace callers/callees as an expandable tree, or render a graph view.

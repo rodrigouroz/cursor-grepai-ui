@@ -4,7 +4,6 @@ import {
   runProcess,
   resolveResultPath,
   buildStatusArgs,
-  buildWatchStatusArgs,
   buildTraceArgs,
   parseLocalStatus,
   isFolderIndexed,
@@ -407,18 +406,15 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       const statusOut = await runProcess(settings.executablePath, buildStatusArgs(), cwd);
       const indexed = isFolderIndexed(statusOut);
 
+      // We report only what we can determine reliably: that an index exists and
+      // when it was last updated. We deliberately do NOT report watcher state —
+      // `grepai watch --status` only sees grepai's own `--background` daemon and
+      // is blind to a launchd/foreground watcher, so any "auto-updating" claim
+      // would be wrong for those (perfectly valid) setups.
       let detail: string;
-      let watcherRunning = false;
       if (indexed) {
         const parsed = parseLocalStatus(statusOut.stdout);
-        const watch = await runProcess(settings.executablePath, buildWatchStatusArgs(), cwd);
-        watcherRunning =
-          watch.exitCode === 0 &&
-          /running/i.test(watch.stdout) &&
-          !/not running/i.test(watch.stdout);
-        detail = watcherRunning
-          ? `Index ready · auto-updating · last update ${parsed.lastUpdated}`
-          : `Index ready · not auto-updating · last indexed ${parsed.lastUpdated}`;
+        detail = `Index ready · last indexed ${parsed.lastUpdated}`;
       } else {
         detail = "No search index here — run `grepai init` to enable search";
       }
