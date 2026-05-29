@@ -532,6 +532,33 @@ describe("scope discovery UX", () => {
     expect((document.getElementById("scope") as HTMLSelectElement).value).toBe("acme/api");
   });
 
+  test("falls back to the first option when the selected scope is gone from a repost", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "state",
+          defaultLimit: 8,
+          scopes: [
+            { id: "current", label: "Current folder", concrete: false },
+            { id: "acme/api", label: "acme: api", concrete: true },
+          ],
+        },
+      }),
+    );
+    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
+
+    // repost no longer contains acme/api → selection falls back to the first option
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "state", defaultLimit: 8, scopes: [{ id: "current", label: "Current folder", concrete: false }] },
+      }),
+    );
+    expect((document.getElementById("scope") as HTMLSelectElement).value).toBe("current");
+  });
+
   test("the refresh control posts refreshScopes", () => {
     const vscode = fakeVscode();
     init(vscode, document);

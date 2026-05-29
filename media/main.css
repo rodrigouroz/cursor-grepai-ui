@@ -261,3 +261,8 @@ label.inline input {
   text-decoration: underline;
   background: transparent;
 }
+
+.link-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
