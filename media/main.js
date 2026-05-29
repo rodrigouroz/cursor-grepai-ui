@@ -45,6 +45,7 @@ export function init(vscode, doc = document) {
   let currentTraceReqId = 0;
   let traceMode = "precise";
 
+  const refreshScopesBtn = doc.getElementById("refresh-scopes");
   const groupToggle = doc.getElementById("group-toggle");
   let groupByFileEnabled = false; // matches the unchecked checkbox until `state` (or persisted prefs) sets it
   let lastResults = [];
@@ -117,6 +118,10 @@ export function init(vscode, doc = document) {
   scope.addEventListener("change", () => {
     vscode.postMessage({ type: "refreshStatus", scopeId: scope.value });
   });
+
+  if (refreshScopesBtn) {
+    refreshScopesBtn.addEventListener("click", () => vscode.postMessage({ type: "refreshScopes" }));
+  }
 
   query.addEventListener("input", () => {
     if (!liveSearch) return;
@@ -286,6 +291,7 @@ export function init(vscode, doc = document) {
   view.addEventListener("message", (event) => {
     const message = event.data;
     if (message.type === "state") {
+      const previousScope = scope.value;
       concreteById.clear();
       scope.innerHTML = message.scopes
         .map((item) => {
@@ -293,6 +299,9 @@ export function init(vscode, doc = document) {
           return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.label) + "</option>";
         })
         .join("");
+      if (previousScope && Array.from(scope.options).some((o) => o.value === previousScope)) {
+        scope.value = previousScope;
+      }
       defaultLimit = Number(message.defaultLimit || 8);
       if (limit) {
         const hasOption = Array.from(limit.options).some((o) => Number(o.value) === defaultLimit);

@@ -7,6 +7,7 @@ function mountShell() {
     <form id="form">
       <input id="query" type="search">
       <select id="scope"></select>
+      <button id="refresh-scopes">Refresh scopes</button>
       <select id="limit">
         <option value="8">8</option>
         <option value="25">25</option>
@@ -502,5 +503,39 @@ describe("group by file", () => {
 
     expect(document.querySelector("details.file-group")).toBeNull();
     expect(document.querySelectorAll(".result")).toHaveLength(2);
+  });
+});
+
+describe("scope discovery UX", () => {
+  test("preserves the selected scope across a state repost that still contains it", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    const stateMsg = (extra: any[]) => ({
+      type: "state",
+      defaultLimit: 8,
+      scopes: [{ id: "current", label: "Current folder", concrete: false }, ...extra],
+    });
+
+    // initial state: only Current folder
+    window.dispatchEvent(new MessageEvent("message", { data: stateMsg([]) }));
+    // user picks a discovered scope that arrives in a later repost
+    window.dispatchEvent(
+      new MessageEvent("message", { data: stateMsg([{ id: "acme/api", label: "acme: api", concrete: true }]) }),
+    );
+    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
+
+    // async repost still containing acme/api must NOT reset the selection
+    window.dispatchEvent(
+      new MessageEvent("message", { data: stateMsg([{ id: "acme/api", label: "acme: api", concrete: true }]) }),
+    );
+    expect((document.getElementById("scope") as HTMLSelectElement).value).toBe("acme/api");
+  });
+
+  test("the refresh control posts refreshScopes", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+    document.getElementById("refresh-scopes")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(vscode.posted).toContainEqual({ type: "refreshScopes" });
   });
 });

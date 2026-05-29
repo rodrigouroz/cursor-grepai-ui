@@ -28,6 +28,7 @@ export function getWebviewHtml(input: WebviewHtmlInput): string {
       Scope
       <select id="scope"></select>
     </label>
+    <button id="refresh-scopes" class="link-button" type="button" title="Re-scan grepai workspaces">Refresh scopes</button>
     <label>
       Results
       <select id="limit">

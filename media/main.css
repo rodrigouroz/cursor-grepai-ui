@@ -244,3 +244,20 @@ label.inline input {
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
+
+.link-button {
+  width: auto;
+  min-height: 0;
+  margin: -2px 0 2px;
+  padding: 0;
+  justify-self: start;
+  background: transparent;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  font-size: 11px;
+  cursor: pointer;
+}
+.link-button:hover {
+  text-decoration: underline;
+  background: transparent;
+}
