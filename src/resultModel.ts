@@ -16,20 +16,7 @@ export interface NormalizedGrepaiResult {
   preview: string;
 }
 
-export interface CurrentScope {
-  kind: "current";
-}
-
-export interface WorkspaceProjectScope {
-  kind: "workspaceProject";
-  workspace: string;
-  project: string;
-}
-
-export type SearchScope = CurrentScope | WorkspaceProjectScope;
-
 export interface SearchArgsInput {
   query: string;
   limit: number;
-  scope: SearchScope;
 }

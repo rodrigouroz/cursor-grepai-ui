@@ -24,13 +24,6 @@ describe("package manifest", () => {
     });
   });
 
-  test("contributes the refresh-scopes command", () => {
-    expect(manifest.contributes.commands).toContainEqual({
-      command: "grepaiSearch.refreshScopes",
-      title: "GrepAI: Refresh Scopes",
-      category: "GrepAI",
-    });
-  });
 });
 
 describe("packaging", () => {

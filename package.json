@@ -17,8 +17,7 @@
   ],
   "activationEvents": [
     "onView:grepaiSearch.view",
-    "onCommand:grepaiSearch.open",
-    "onCommand:grepaiSearch.refreshScopes"
+    "onCommand:grepaiSearch.open"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -26,11 +25,6 @@
       {
         "command": "grepaiSearch.open",
         "title": "GrepAI: Open Search",
-        "category": "GrepAI"
-      },
-      {
-        "command": "grepaiSearch.refreshScopes",
-        "title": "GrepAI: Refresh Scopes",
         "category": "GrepAI"
       }
     ],
@@ -57,37 +51,10 @@
           "maximum": 50,
           "description": "Default number of GrepAI results to return."
         },
-        "grepaiSearch.workspaceProjects": {
-          "type": "array",
-          "default": [],
-          "description": "Additional workspace project scopes.",
-          "items": {
-            "type": "object",
-            "required": [
-              "workspace",
-              "project",
-              "rootPath"
-            ],
-            "properties": {
-              "label": {
-                "type": "string"
-              },
-              "workspace": {
-                "type": "string"
-              },
-              "project": {
-                "type": "string"
-              },
-              "rootPath": {
-                "type": "string"
-              }
-            }
-          }
-        },
         "grepaiSearch.liveSearch": {
           "type": "boolean",
           "default": false,
-          "description": "Search as you type (debounced). Only runs for scopes that resolve without a folder prompt."
+          "description": "Search as you type (debounced)."
         },
         "grepaiSearch.liveSearchDelayMs": {
           "type": "number",

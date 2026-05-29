@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import type { WorkspaceProject } from "./config";
 import type {
   NormalizedGrepaiResult,
   RawGrepaiResult,
@@ -10,7 +9,6 @@ import type {
 export interface RunGrepaiInput extends SearchArgsInput {
   executablePath: string;
   cwd: string;
-  projects: WorkspaceProject[];
   signal?: AbortSignal;
 }
 
@@ -27,83 +25,34 @@ export interface ProcessOutput {
 }
 
 export function buildSearchArgs(input: SearchArgsInput): string[] {
-  const args = ["search", input.query];
-
-  if (input.scope.kind === "workspaceProject") {
-    args.push("--workspace", input.scope.workspace, "--project", input.scope.project);
-  }
-
-  args.push("--json", "--limit", String(input.limit));
-  return args;
+  return ["search", input.query, "--json", "--limit", String(input.limit)];
 }
 
 export function buildStatusArgs(): string[] {
   return ["status", "--no-ui"];
 }
 
-export function buildWorkspaceStatusArgs(workspace: string): string[] {
-  return ["workspace", "status", workspace];
+export function isFolderIndexed(out: ProcessOutput): boolean {
+  return out.exitCode === 0 && parseLocalStatus(out.stdout).filesIndexed > 0;
 }
 
-export function buildWorkspaceListArgs(): string[] {
-  return ["workspace", "list"];
+export function buildWatchStatusArgs(): string[] {
+  return ["watch", "--status"];
 }
 
-export function parseWorkspaceList(text: string): string[] {
-  // Workspace names are exactly-2-space-indented bare tokens (detail lines are 4-space indented).
-  return text
-    .split(/\r?\n/)
-    .map((line) => /^ {2}(\S+)\s*$/.exec(line))
-    .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => m[1]);
-}
-
-export interface DiscoveredProject {
-  project: string;
-  rootPath: string;
-  indexed: boolean;
-}
-
-export function parseWorkspaceProjects(text: string): DiscoveredProject[] {
-  const out: DiscoveredProject[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = /^\s*-\s*([^:]+):\s*(.+)$/.exec(line);
-    if (!m) continue;
-    const project = m[1].trim();
-    const rest = m[2].trim();
-    const indexed = rest.endsWith("✓");
-    const rootPath = (indexed ? rest.slice(0, -1) : rest).trim();
-    out.push({ project, rootPath, indexed });
-  }
-  return out;
-}
-
-export function buildWatchStatusArgs(workspace?: string): string[] {
-  const args = ["watch", "--status"];
-  if (workspace) args.push("--workspace", workspace);
-  return args;
-}
-
-export function buildWatchBackgroundArgs(workspace?: string): string[] {
-  const args = ["watch", "--background"];
-  if (workspace) args.push("--workspace", workspace);
-  return args;
+export function buildWatchBackgroundArgs(): string[] {
+  return ["watch", "--background"];
 }
 
 export interface TraceArgsInput {
   direction: "callers" | "callees" | "graph";
   symbol: string;
   mode: string;
-  scope: import("./resultModel").SearchScope;
   depth?: number;
 }
 
 export function buildTraceArgs(input: TraceArgsInput): string[] {
-  const args = ["trace", input.direction, input.symbol];
-  if (input.scope.kind === "workspaceProject") {
-    args.push("--workspace", input.scope.workspace, "--project", input.scope.project);
-  }
-  args.push("--json", "--mode", input.mode);
+  const args = ["trace", input.direction, input.symbol, "--json", "--mode", input.mode];
   if (input.direction === "graph" && input.depth) {
     args.push("--depth", String(input.depth));
   }
@@ -128,11 +77,6 @@ export function parseLocalStatus(text: string): LocalStatus {
     lastUpdated: updated ? updated[1].trim() : "Never",
     watcherRunning: watcher ? /running/i.test(watcher[1]) && !/not running/i.test(watcher[1]) : false,
   };
-}
-
-export function parseWorkspaceStatus(text: string, project: string): { indexed: boolean } {
-  const found = parseWorkspaceProjects(text).find((p) => p.project === project);
-  return { indexed: Boolean(found?.indexed) };
 }
 
 export function parseSearchResults(stdout: string): RawGrepaiResult[] {
@@ -178,35 +122,17 @@ function parseRawResult(item: unknown, index: number): RawGrepaiResult {
   return result as RawGrepaiResult;
 }
 
-export function resolveResultPath(
-  filePath: string,
-  cwd: string,
-  projects: WorkspaceProject[],
-): string {
-  if (path.isAbsolute(filePath)) {
-    return filePath;
-  }
-
-  const segments = filePath.split(/[\\/]+/);
-  const matchingProject = projects.find(
-    (project) => project.workspace === segments[0] && project.project === segments[1],
-  );
-
-  if (matchingProject) {
-    return path.join(matchingProject.rootPath, ...segments.slice(2));
-  }
-
-  return path.resolve(cwd, filePath);
+export function resolveResultPath(filePath: string, cwd: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath);
 }
 
 export function normalizeResults(
   rawResults: RawGrepaiResult[],
   cwd: string,
-  projects: WorkspaceProject[],
 ): NormalizedGrepaiResult[] {
   return rawResults.map((result, index) => ({
     id: String(index),
-    filePath: resolveResultPath(result.file_path, cwd, projects),
+    filePath: resolveResultPath(result.file_path, cwd),
     displayPath: result.file_path,
     startLine: result.start_line,
     endLine: result.end_line,
@@ -229,7 +155,7 @@ export async function runGrepaiSearch(input: RunGrepaiInput): Promise<Normalized
     throw new Error(formatProcessError("GrepAI search failed", output));
   }
 
-  return normalizeResults(parseSearchResults(output.stdout), input.cwd, input.projects);
+  return normalizeResults(parseSearchResults(output.stdout), input.cwd);
 }
 
 export async function runGrepaiStatus(input: RunStatusInput): Promise<ProcessOutput> {

@@ -7,56 +7,15 @@ import {
   parseSearchResults,
   resolveResultPath,
 } from "../src/grepaiCli";
-import type { WorkspaceProject } from "../src/config";
-
-const projects: WorkspaceProject[] = [
-  {
-    label: "Acme: api",
-    workspace: "acme",
-    project: "api",
-    rootPath: "/Users/example/Projects/api",
-  },
-  {
-    label: "Acme: web",
-    workspace: "acme",
-    project: "web",
-    rootPath: "/Users/example/Projects/web",
-  },
-];
 
 describe("buildSearchArgs", () => {
-  test("builds argv for current-folder search without shell interpolation", () => {
+  test("builds argv for search without shell interpolation", () => {
     expect(
       buildSearchArgs({
         query: "user input; rm -rf /",
         limit: 8,
-        scope: { kind: "current" },
       }),
     ).toEqual(["search", "user input; rm -rf /", "--json", "--limit", "8"]);
-  });
-
-  test("builds argv for configured workspace project search", () => {
-    expect(
-      buildSearchArgs({
-        query: "district announcement wizard",
-        limit: 3,
-        scope: {
-          kind: "workspaceProject",
-          workspace: "acme",
-          project: "web",
-        },
-      }),
-    ).toEqual([
-      "search",
-      "district announcement wizard",
-      "--workspace",
-      "acme",
-      "--project",
-      "web",
-      "--json",
-      "--limit",
-      "3",
-    ]);
   });
 });
 
@@ -73,24 +32,14 @@ describe("parseSearchResults", () => {
 });
 
 describe("resolveResultPath", () => {
-  test("resolves workspace-prefixed file paths through configured project roots", () => {
-    expect(
-      resolveResultPath(
-        "acme/web/teach/src/foo.ts",
-        "/tmp/current",
-        projects,
-      ),
-    ).toBe("/Users/example/Projects/web/teach/src/foo.ts");
-  });
-
   test("resolves relative file paths against the search cwd", () => {
-    expect(resolveResultPath("src/foo.ts", "/Users/example/Projects/api", projects)).toBe(
+    expect(resolveResultPath("src/foo.ts", "/Users/example/Projects/api")).toBe(
       "/Users/example/Projects/api/src/foo.ts",
     );
   });
 
   test("keeps absolute file paths unchanged", () => {
-    expect(resolveResultPath("/Users/example/Projects/api/src/foo.ts", "/tmp/current", projects)).toBe(
+    expect(resolveResultPath("/Users/example/Projects/api/src/foo.ts", "/tmp/current")).toBe(
       "/Users/example/Projects/api/src/foo.ts",
     );
   });
@@ -99,12 +48,12 @@ describe("resolveResultPath", () => {
 describe("normalizeResults", () => {
   test("normalizes raw GrepAI results for UI rendering and file opening", () => {
     const rawResults = parseSearchResults(JSON.stringify(fixture));
-    const normalized = normalizeResults(rawResults, "/tmp/current", projects);
+    const normalized = normalizeResults(rawResults, "/tmp/current");
 
     expect(normalized).toEqual([
       {
         id: "0",
-        filePath: "/Users/example/Projects/api/src/jobs/sync/runSync.ts",
+        filePath: "/tmp/current/acme/api/src/jobs/sync/runSync.ts",
         displayPath: "acme/api/src/jobs/sync/runSync.ts",
         startLine: 12,
         endLine: 29,
@@ -128,31 +77,39 @@ describe("normalizePreview", () => {
 });
 
 import {
-  buildWorkspaceStatusArgs,
   buildWatchStatusArgs,
   buildWatchBackgroundArgs,
+  isFolderIndexed,
   parseLocalStatus,
-  parseWorkspaceStatus,
 } from "../src/grepaiCli";
 
 describe("status/watch arg builders", () => {
-  test("workspace status takes the workspace name positionally", () => {
-    expect(buildWorkspaceStatusArgs("acme")).toEqual(["workspace", "status", "acme"]);
-  });
-
-  test("watch status adds --workspace when given", () => {
+  test("watch status takes no arguments", () => {
     expect(buildWatchStatusArgs()).toEqual(["watch", "--status"]);
-    expect(buildWatchStatusArgs("acme")).toEqual(["watch", "--status", "--workspace", "acme"]);
   });
 
-  test("watch background adds --workspace when given", () => {
+  test("watch background takes no arguments", () => {
     expect(buildWatchBackgroundArgs()).toEqual(["watch", "--background"]);
-    expect(buildWatchBackgroundArgs("acme")).toEqual([
-      "watch",
-      "--background",
-      "--workspace",
-      "acme",
-    ]);
+  });
+});
+
+describe("isFolderIndexed", () => {
+  test("true when exit 0 and files indexed > 0", () => {
+    expect(
+      isFolderIndexed({ stdout: "Files indexed: 142", stderr: "", exitCode: 0 }),
+    ).toBe(true);
+  });
+
+  test("false when exit code is non-zero", () => {
+    expect(
+      isFolderIndexed({ stdout: "Files indexed: 142", stderr: "", exitCode: 1 }),
+    ).toBe(false);
+  });
+
+  test("false when exit 0 but zero files indexed", () => {
+    expect(
+      isFolderIndexed({ stdout: "Files indexed: 0", stderr: "", exitCode: 0 }),
+    ).toBe(false);
   });
 });
 
@@ -186,101 +143,28 @@ describe("parseLocalStatus", () => {
   });
 });
 
-describe("parseWorkspaceStatus", () => {
-  const text = [
-    "Workspace: acme",
-    "  Backend: qdrant",
-    "  Projects: 2",
-    "    - api: /Users/x/Projects/api ✓",
-    "    - web: /Users/x/Projects/web ✓",
-  ].join("\n");
-
-  test("reports a project as indexed when its line carries a check mark", () => {
-    expect(parseWorkspaceStatus(text, "api")).toEqual({ indexed: true });
-  });
-
-  test("reports not indexed when the project is absent", () => {
-    expect(parseWorkspaceStatus(text, "missing")).toEqual({ indexed: false });
-  });
-
-  test("reports not indexed when the project is listed without a check mark", () => {
-    const partial = "    - api: /Users/x/Projects/api\n";
-    expect(parseWorkspaceStatus(partial, "api")).toEqual({ indexed: false });
-  });
-});
-
-import {
-  buildWorkspaceListArgs,
-  parseWorkspaceList,
-  parseWorkspaceProjects,
-} from "../src/grepaiCli";
-
-describe("buildWorkspaceListArgs", () => {
-  test("lists workspaces", () => {
-    expect(buildWorkspaceListArgs()).toEqual(["workspace", "list"]);
-  });
-});
-
-describe("parseWorkspaceList", () => {
-  test("extracts 2-space-indented workspace names, ignoring header and detail lines", () => {
-    const text = ["Workspaces (2):", "", "  acme", "    Backend: qdrant", "    Projects: 2", "  other-ws", "    Backend: gob"].join("\n");
-    expect(parseWorkspaceList(text)).toEqual(["acme", "other-ws"]);
-  });
-
-  test("handles zero workspaces", () => {
-    expect(parseWorkspaceList("Workspaces (0):\n")).toEqual([]);
-  });
-});
-
-describe("parseWorkspaceProjects", () => {
-  test("parses project, rootPath, and indexed flag", () => {
-    const text = [
-      "Workspace: acme",
-      "  Projects: 2",
-      "    - api: /Users/x/Projects/api ✓",
-      "    - web: /Users/x/Projects/web",
-    ].join("\n");
-    expect(parseWorkspaceProjects(text)).toEqual([
-      { project: "api", rootPath: "/Users/x/Projects/api", indexed: true },
-      { project: "web", rootPath: "/Users/x/Projects/web", indexed: false },
-    ]);
-  });
-
-  test("handles CRLF line endings and rootPaths containing spaces", () => {
-    const text = "  Projects: 1\r\n    - api: /Users/x/My Projects/api ✓\r\n";
-    expect(parseWorkspaceProjects(text)).toEqual([
-      { project: "api", rootPath: "/Users/x/My Projects/api", indexed: true },
-    ]);
-  });
-});
-
 import { buildTraceArgs } from "../src/grepaiCli";
 
 describe("buildTraceArgs", () => {
-  test("callers for a workspace project with precise mode", () => {
+  test("callers with precise mode", () => {
     expect(
       buildTraceArgs({
         direction: "callers",
         symbol: "Login",
         mode: "precise",
-        scope: { kind: "workspaceProject", workspace: "acme", project: "api" },
       }),
-    ).toEqual([
-      "trace", "callers", "Login",
-      "--workspace", "acme", "--project", "api",
-      "--json", "--mode", "precise",
-    ]);
+    ).toEqual(["trace", "callers", "Login", "--json", "--mode", "precise"]);
   });
 
-  test("callees for the current scope omits workspace flags", () => {
+  test("callees with fast mode", () => {
     expect(
-      buildTraceArgs({ direction: "callees", symbol: "handle", mode: "fast", scope: { kind: "current" } }),
+      buildTraceArgs({ direction: "callees", symbol: "handle", mode: "fast" }),
     ).toEqual(["trace", "callees", "handle", "--json", "--mode", "fast"]);
   });
 
   test("graph adds --depth", () => {
     expect(
-      buildTraceArgs({ direction: "graph", symbol: "X", mode: "precise", scope: { kind: "current" }, depth: 3 }),
+      buildTraceArgs({ direction: "graph", symbol: "X", mode: "precise", depth: 3 }),
     ).toEqual(["trace", "graph", "X", "--json", "--mode", "precise", "--depth", "3"]);
   });
 });
