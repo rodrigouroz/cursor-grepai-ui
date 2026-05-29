@@ -2,7 +2,7 @@
   "name": "cursor-grepai-ui",
   "displayName": "Cursor GrepAI UI",
   "description": "Clickable Cursor sidebar UI for GrepAI semantic code search.",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "publisher": "local",
   "private": true,
   "repository": {
