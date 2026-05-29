@@ -83,14 +83,28 @@ button:hover {
 }
 
 .path {
-  display: -webkit-box;
-  overflow-wrap: anywhere;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   font-size: 11px;
+  line-height: 1.3;
+}
+
+.path-file {
+  flex: 0 0 auto;
   font-weight: 600;
-  line-height: 1.25;
+}
+
+.path-dir {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  font-weight: 400;
 }
 
 .meta {
@@ -101,17 +115,21 @@ button:hover {
 }
 
 .preview {
-  display: -webkit-box;
   margin-top: 4px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  max-height: 5.2em; /* ~4 lines at line-height 1.3 */
+  white-space: pre-wrap; /* wrap at whitespace, preserve indentation, never split tokens */
   overflow: hidden;
   color: var(--vscode-descriptionForeground);
   font-family: var(--vscode-editor-font-family);
   font-size: 10.5px;
   line-height: 1.3;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+}
+
+/* Only applied (via JS) when the snippet actually overflows, so short
+   previews aren't faded. Replaces the hard mid-line cut with a soft fade. */
+.preview--clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
 }
 
 .score-bar {
@@ -139,14 +157,6 @@ button:hover {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
   background: var(--vscode-badge-background, var(--vscode-list-inactiveSelectionBackground));
-}
-
-.badge-action {
-  width: auto;
-  min-height: 20px;
-  margin-left: 6px;
-  padding: 1px 8px;
-  font-size: 11px;
 }
 
 .tok-kw { color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-charts-purple)); }

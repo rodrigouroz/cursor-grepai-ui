@@ -93,6 +93,57 @@ describe("search history", () => {
   });
 });
 
+describe("result path rendering", () => {
+  test("splits displayPath into a prominent filename and a muted directory", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "results",
+          folderId: "",
+          results: [
+            {
+              id: "0",
+              displayPath: "src/models/Districts/Bulletins/Bulletin.ts",
+              startLine: 1,
+              endLine: 2,
+              score: 0.9,
+              preview: "x",
+            },
+          ],
+        },
+      }),
+    );
+
+    const path = document.querySelector(".result .path")!;
+    expect(path.querySelector(".path-file")!.textContent).toBe("Bulletin.ts");
+    expect(path.querySelector(".path-dir")!.textContent).toBe("src/models/Districts/Bulletins");
+    // full path preserved for the hover tooltip
+    expect(path.getAttribute("title")).toBe("src/models/Districts/Bulletins/Bulletin.ts");
+  });
+
+  test("a bare filename renders no directory span", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "results",
+          folderId: "",
+          results: [{ id: "0", displayPath: "main.js", startLine: 1, endLine: 2, score: 0.5, preview: "x" }],
+        },
+      }),
+    );
+
+    const path = document.querySelector(".result .path")!;
+    expect(path.querySelector(".path-file")!.textContent).toBe("main.js");
+    expect(path.querySelector(".path-dir")).toBeNull();
+  });
+});
+
 describe("open modes", () => {
   test("plain click opens in preview; alt-click opens beside", () => {
     const vscode = fakeVscode();
@@ -118,7 +169,7 @@ describe("open modes", () => {
 });
 
 describe("index health badge", () => {
-  test("renders detail and a Start watcher button when allowed", () => {
+  test("renders the index-health detail as read-only text with no action button", () => {
     const vscode = fakeVscode();
     init(vscode, document);
 
@@ -127,35 +178,18 @@ describe("index health badge", () => {
         data: {
           type: "status",
           folderId: "",
-          statusToken: "tok1",
           indexed: true,
-          detail: "indexed · updated 2h ago",
-          canStartWatcher: true,
+          detail: "Index ready · not auto-updating · last indexed 2h ago",
         },
       }),
     );
 
     const badge = document.getElementById("badge")!;
     expect(badge.hidden).toBe(false);
-    expect(badge.textContent).toContain("indexed · updated 2h ago");
-    const button = badge.querySelector("button")!;
-    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(vscode.posted).toContainEqual({ type: "startWatcher", statusToken: "tok1" });
-  });
-
-  test("a status with canStartWatcher false shows detail but no button", () => {
-    const vscode = fakeVscode();
-    init(vscode, document);
-
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data: { type: "status", folderId: "", statusToken: "t", indexed: true, detail: "indexed ✓ · watching", canStartWatcher: false },
-      }),
-    );
-
-    const badge = document.getElementById("badge")!;
-    expect(badge.textContent).toBe("indexed ✓ · watching");
+    expect(badge.textContent).toBe("Index ready · not auto-updating · last indexed 2h ago");
+    // The extension observes the index but never offers to manage the watcher.
     expect(badge.querySelector("button")).toBeNull();
+    expect(vscode.posted).not.toContainEqual(expect.objectContaining({ type: "startWatcher" }));
   });
 
   test("a status for a non-selected folder is ignored as stale", () => {

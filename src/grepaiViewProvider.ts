@@ -5,7 +5,6 @@ import {
   resolveResultPath,
   buildStatusArgs,
   buildWatchStatusArgs,
-  buildWatchBackgroundArgs,
   buildTraceArgs,
   parseLocalStatus,
   isFolderIndexed,
@@ -26,7 +25,6 @@ type WebviewMessage =
   | { type: "search"; query: string; folderId: string; limit: number }
   | { type: "openResult"; id: string; mode?: OpenMode }
   | { type: "refreshStatus"; folderId: string }
-  | { type: "startWatcher"; statusToken: string }
   | {
       type: "trace";
       traceRequestId: number;
@@ -46,7 +44,6 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   private results = new Map<string, NormalizedGrepaiResult>();
   private activeAbort?: AbortController;
   private requestId = 0;
-  private statusContexts = new Map<string, { cwd: string; folderId: string }>();
   private traceRequestId = 0;
   private activeTraceAbort?: AbortController;
   private traceLocations = new Map<string, { filePath: string; line: number }>();
@@ -97,11 +94,6 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "refreshStatus") {
       await this.refreshStatus(message.folderId);
-      return;
-    }
-
-    if (message.type === "startWatcher") {
-      await this.startWatcher(message.statusToken);
       return;
     }
 
@@ -407,7 +399,6 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
         folderId,
         indexed: false,
         detail: "Open a folder to search.",
-        canStartWatcher: false,
       });
       return;
     }
@@ -425,20 +416,18 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
           watch.exitCode === 0 &&
           /running/i.test(watch.stdout) &&
           !/not running/i.test(watch.stdout);
-        detail = `indexed · updated ${parsed.lastUpdated}` + (watcherRunning ? " · watching" : "");
+        detail = watcherRunning
+          ? `Index ready · auto-updating · last update ${parsed.lastUpdated}`
+          : `Index ready · not auto-updating · last indexed ${parsed.lastUpdated}`;
       } else {
-        detail = "No GrepAI index in this folder — run `grepai init`";
+        detail = "No search index here — run `grepai init` to enable search";
       }
 
-      const statusToken = createNonce();
-      this.statusContexts.set(statusToken, { cwd, folderId });
       this.view?.webview.postMessage({
         type: "status",
-        statusToken,
         folderId,
         indexed,
         detail,
-        canStartWatcher: indexed && !watcherRunning,
       });
     } catch {
       this.view?.webview.postMessage({
@@ -446,27 +435,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
         folderId,
         indexed: false,
         detail: "status unavailable",
-        canStartWatcher: false,
       });
-    }
-  }
-
-  private async startWatcher(statusToken: string): Promise<void> {
-    const ctx = this.statusContexts.get(statusToken);
-    if (!ctx) {
-      this.postError("Status changed — refresh and try Start watcher again.");
-      return;
-    }
-    const settings = this.getSettings();
-    try {
-      const out = await runProcess(settings.executablePath, buildWatchBackgroundArgs(), ctx.cwd);
-      if (out.exitCode !== 0) {
-        this.postError(`Could not start watcher:\n${out.stderr.trim() || out.stdout.trim()}`);
-        return;
-      }
-      setTimeout(() => void this.refreshStatus(ctx.folderId), 2000);
-    } catch (error) {
-      this.postError(error instanceof Error ? error.message : String(error));
     }
   }
 

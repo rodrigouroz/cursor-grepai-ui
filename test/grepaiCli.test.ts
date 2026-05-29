@@ -78,7 +78,6 @@ describe("normalizePreview", () => {
 
 import {
   buildWatchStatusArgs,
-  buildWatchBackgroundArgs,
   isFolderIndexed,
   parseLocalStatus,
 } from "../src/grepaiCli";
@@ -86,10 +85,6 @@ import {
 describe("status/watch arg builders", () => {
   test("watch status takes no arguments", () => {
     expect(buildWatchStatusArgs()).toEqual(["watch", "--status"]);
-  });
-
-  test("watch background takes no arguments", () => {
-    expect(buildWatchBackgroundArgs()).toEqual(["watch", "--background"]);
   });
 });
 

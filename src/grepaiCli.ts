@@ -34,10 +34,6 @@ export function buildWatchStatusArgs(): string[] {
   return ["watch", "--status"];
 }
 
-export function buildWatchBackgroundArgs(): string[] {
-  return ["watch", "--background"];
-}
-
 export interface TraceArgsInput {
   direction: "callers" | "callees" | "graph";
   symbol: string;

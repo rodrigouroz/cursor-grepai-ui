@@ -28,7 +28,6 @@ export function init(vscode, doc = document) {
   const badge = doc.getElementById("badge");
   const searchBtn = doc.getElementById("search");
   let defaultLimit = 8;
-  let statusToken = null;
   let lastSearchExplicit = false;
   let liveSearch = false;
   let liveDelay = 350;
@@ -66,11 +65,26 @@ export function init(vscode, doc = document) {
   }
   renderHistory();
 
+  function pathHtml(displayPath) {
+    const path = String(displayPath);
+    const slash = path.lastIndexOf("/");
+    const file = slash >= 0 ? path.slice(slash + 1) : path;
+    const dir = slash >= 0 ? path.slice(0, slash) : "";
+    // filename first (never truncated); directory muted and ellipsized from the
+    // left via .path-dir so the deepest, most relevant folders stay visible.
+    return (
+      '<div class="path" title="' + escapeHtml(path) + '">' +
+      '<span class="path-file">' + escapeHtml(file) + "</span>" +
+      (dir ? '<span class="path-dir" dir="rtl">' + escapeHtml(dir) + "</span>" : "") +
+      "</div>"
+    );
+  }
+
   function cardHtml(item) {
     return (
       '<button class="result" type="button" data-id="' + escapeHtml(item.id) +
       '" data-symbol="' + escapeHtml(deriveSymbol(item.preview)) + '">' +
-      '<div class="path">' + escapeHtml(item.displayPath) + "</div>" +
+      pathHtml(item.displayPath) +
       '<div class="meta" title="score ' + escapeHtml(Number(item.score).toFixed(3)) + '">' +
       "L" + escapeHtml(item.startLine) + "-" + escapeHtml(item.endLine) +
       ' · <span class="strength">' + escapeHtml(item.label) + "</span></div>" +
@@ -80,12 +94,21 @@ export function init(vscode, doc = document) {
     );
   }
 
+  // A clamped preview only gets the bottom fade when its content actually
+  // overflows, so short snippets aren't visually faded for no reason.
+  function markClippedPreviews() {
+    results.querySelectorAll(".preview").forEach((el) => {
+      el.classList.toggle("preview--clipped", el.scrollHeight > el.clientHeight + 1);
+    });
+  }
+
   function renderResults(items) {
     lastResults = items;
     const scored = normalizeScores(items);
     const grouped = groupByFileEnabled && new Set(scored.map((i) => i.displayPath)).size < scored.length;
     if (!grouped) {
       results.innerHTML = scored.map(cardHtml).join("");
+      markClippedPreviews();
       return;
     }
     results.innerHTML = groupByFile(scored)
@@ -99,6 +122,7 @@ export function init(vscode, doc = document) {
         );
       })
       .join("");
+    markClippedPreviews();
   }
 
   function runSearch(explicit) {
@@ -356,19 +380,11 @@ export function init(vscode, doc = document) {
       if (message.folderId !== selectedFolderId()) return;
       folderIndexed = Boolean(message.indexed);
       if (badge) {
-        statusToken = message.statusToken;
         badge.hidden = false;
-        badge.textContent = message.detail; // textContent assignment also clears any prior Start-watcher button
-        if (message.canStartWatcher) {
-          const button = doc.createElement("button");
-          button.type = "button";
-          button.className = "badge-action";
-          button.textContent = "Start watcher";
-          button.addEventListener("click", () => {
-            vscode.postMessage({ type: "startWatcher", statusToken });
-          });
-          badge.appendChild(button);
-        }
+        // Read-only freshness indicator. The extension reports the index state
+        // but does not manage the GrepAI watcher — running `grepai watch` is
+        // the user's responsibility.
+        badge.textContent = message.detail;
       }
       query.disabled = !folderIndexed;
       if (searchBtn) searchBtn.disabled = !folderIndexed;
