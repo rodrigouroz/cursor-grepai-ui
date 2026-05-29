@@ -14,6 +14,7 @@ explore the call graph — without leaving the editor.
 - **Index-health badge** (read-only) showing whether the folder is indexed and when it was last updated. It does not report watcher state — `grepai watch --status` can't see launchd/foreground watchers, so any "auto-updating" claim would be unreliable. Managing the grepai watcher is left to you.
 - **Opt-in live search** (debounced, type-to-search).
 - **Syntax-highlighted previews** and collapsible **group-by-file** results.
+- **Per-card actions**: hover or focus a result to open it beside, reveal it in the Explorer, copy it as a ready-to-paste `path:line` + code block, or send it to chat (falls back to copying when chat integration is unavailable).
 - **Call graph panel**: trace callers/callees as an expandable tree, or render a graph view.
 
 ## Install

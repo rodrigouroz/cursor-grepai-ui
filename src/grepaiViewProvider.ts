@@ -14,6 +14,8 @@ import type { NormalizedGrepaiResult } from "./resultModel";
 import { getWebviewHtml } from "./webviewHtml";
 import { resolveOpenOptions, type OpenMode } from "./openMode";
 import { formatRelativeTime } from "./relativeTime";
+import { formatResultContext } from "./resultContext";
+import { trySendToChat } from "./chatBridge";
 
 interface FolderOption {
   id: string;
@@ -24,6 +26,9 @@ type WebviewMessage =
   | { type: "ready" }
   | { type: "search"; query: string; folderId: string; limit: number }
   | { type: "openResult"; id: string; mode?: OpenMode }
+  | { type: "revealResult"; id: string }
+  | { type: "copyResult"; id: string }
+  | { type: "sendResultToChat"; id: string }
   | { type: "refreshStatus"; folderId: string }
   | {
       type: "trace";
@@ -89,6 +94,21 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
 
     if (message.type === "openResult") {
       await this.openResult(message.id, message.mode);
+      return;
+    }
+
+    if (message.type === "revealResult") {
+      await this.revealResult(message.id);
+      return;
+    }
+
+    if (message.type === "copyResult") {
+      await this.copyResult(message.id);
+      return;
+    }
+
+    if (message.type === "sendResultToChat") {
+      await this.sendResultToChat(message.id);
       return;
     }
 
@@ -218,6 +238,49 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     await this.openAt(result.filePath, result.startLine, mode);
+  }
+
+  private async revealResult(id: string): Promise<void> {
+    const result = this.results.get(id);
+    if (!result) {
+      this.postError("Result is no longer available.");
+      return;
+    }
+    if (!(await fileExists(result.filePath))) {
+      this.postError("That file no longer exists in this checkout.");
+      return;
+    }
+    await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(result.filePath));
+  }
+
+  private async copyResult(id: string): Promise<void> {
+    const result = this.results.get(id);
+    if (!result) {
+      this.postError("Result is no longer available.");
+      return;
+    }
+    await vscode.env.clipboard.writeText(formatResultContext(result));
+    vscode.window.setStatusBarMessage("GrepAI: result copied for prompt", 2000);
+  }
+
+  private async sendResultToChat(id: string): Promise<void> {
+    const result = this.results.get(id);
+    if (!result) {
+      this.postError("Result is no longer available.");
+      return;
+    }
+    const block = formatResultContext(result);
+    const sent = await trySendToChat(block, {
+      getCommands: () => Promise.resolve(vscode.commands.getCommands(true)),
+      executeCommand: (command, ...args) =>
+        Promise.resolve(vscode.commands.executeCommand(command, ...args)),
+    });
+    if (!sent) {
+      await vscode.env.clipboard.writeText(block);
+      void vscode.window.showInformationMessage(
+        "Copied to clipboard — Cursor chat integration unavailable.",
+      );
+    }
   }
 
   private async openAt(filePath: string, startLine: number, mode?: OpenMode): Promise<void> {

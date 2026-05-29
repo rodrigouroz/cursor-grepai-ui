@@ -776,3 +776,70 @@ describe("stale cross-folder responses", () => {
     expect(document.getElementById("status")!.textContent).not.toBe("boom");
   });
 });
+
+describe("result actions", () => {
+  function renderOneResult(vscode: ReturnType<typeof fakeVscode>) {
+    init(vscode, document);
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "results",
+          folderId: "",
+          results: [{ id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" }],
+        },
+      }),
+    );
+  }
+
+  test("each card renders the four action buttons with accessible labels", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+    const actions = Array.from(document.querySelectorAll(".result .result-action")).map(
+      (b) => (b as HTMLButtonElement).dataset.action,
+    );
+    expect(actions).toEqual(["openSide", "revealResult", "copyResult", "sendResultToChat"]);
+    const reveal = document.querySelector('.result-action[data-action="revealResult"]')!;
+    expect(reveal.getAttribute("aria-label")).toBe("Reveal in Explorer");
+  });
+
+  test("clicking an action posts its message and does not also open the result", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+
+    (document.querySelector('.result-action[data-action="copyResult"]') as HTMLElement).dispatchEvent(
+      new MouseEvent("click", { bubbles: true }),
+    );
+    expect(vscode.posted).toContainEqual({ type: "copyResult", id: "0" });
+    expect(vscode.posted.some((m) => m.type === "openResult")).toBe(false);
+  });
+
+  test("the open-to-side action reuses the openResult/beside path", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+
+    (document.querySelector('.result-action[data-action="openSide"]') as HTMLElement).dispatchEvent(
+      new MouseEvent("click", { bubbles: true }),
+    );
+    expect(vscode.posted).toContainEqual({ type: "openResult", id: "0", mode: "beside" });
+  });
+
+  test("clicking the card body still opens in preview", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+
+    const card = document.querySelector(".result") as HTMLElement;
+    card.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(vscode.posted).toContainEqual({ type: "openResult", id: "0", mode: "preview" });
+  });
+
+  test("Space key on a focused card activates it (same as Enter, mode=active)", () => {
+    const vscode = fakeVscode();
+    renderOneResult(vscode);
+
+    const card = document.querySelector(".result") as HTMLElement;
+    card.focus();
+    card.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+
+    expect(vscode.posted).toContainEqual({ type: "openResult", id: "0", mode: "active" });
+  });
+});
