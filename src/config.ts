@@ -1,0 +1,50 @@
+import path from "node:path";
+
+export interface WorkspaceProject {
+  label: string;
+  workspace: string;
+  project: string;
+  rootPath: string;
+}
+
+export interface ExtensionSettings {
+  executablePath: string;
+  defaultLimit: number;
+  workspaceProjects: WorkspaceProject[];
+}
+
+export function getDefaultProjects(): WorkspaceProject[] {
+  // No built-in projects: users add their own workspace scopes via the
+  // `grepaiSearch.workspaceProjects` setting.
+  return [];
+}
+
+export function mergeProjects(
+  defaults: WorkspaceProject[],
+  configured: WorkspaceProject[],
+): WorkspaceProject[] {
+  const seen = new Set<string>();
+  const merged: WorkspaceProject[] = [];
+
+  for (const project of [...defaults, ...configured]) {
+    const key = `${project.workspace}/${project.project}/${project.rootPath}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(project);
+    }
+  }
+
+  return merged;
+}
+
+export function findProjectForRoot(
+  rootPath: string,
+  projects: WorkspaceProject[],
+): WorkspaceProject | undefined {
+  const normalizedRoot = normalizePath(rootPath);
+  return projects.find((project) => normalizePath(project.rootPath) === normalizedRoot);
+}
+
+function normalizePath(value: string): string {
+  return path.resolve(value);
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "file_path": "acme/api/src/jobs/sync/runSync.ts",
+    "start_line": 12,
+    "end_line": 29,
+    "score": 0.73,
+    "content": "File: src/jobs/sync/runSync.ts\n\nexport async function runSync() {}"
+  }
+]

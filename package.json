@@ -1,0 +1,138 @@
+{
+  "name": "cursor-grepai-ui",
+  "displayName": "Cursor GrepAI UI",
+  "description": "Clickable Cursor sidebar UI for GrepAI semantic code search.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rodrigouroz/cursor-grepai-ui.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:grepaiSearch.view",
+    "onCommand:grepaiSearch.open"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "grepaiSearch.open",
+        "title": "GrepAI: Open Search",
+        "category": "GrepAI"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "grepaiSearch.open",
+        "key": "cmd+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "workspaceFolderCount > 0"
+      }
+    ],
+    "configuration": {
+      "title": "GrepAI Search",
+      "properties": {
+        "grepaiSearch.executablePath": {
+          "type": "string",
+          "default": "grepai",
+          "description": "Path to the grepai executable."
+        },
+        "grepaiSearch.defaultLimit": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "Default number of GrepAI results to return."
+        },
+        "grepaiSearch.workspaceProjects": {
+          "type": "array",
+          "default": [],
+          "description": "Additional workspace project scopes.",
+          "items": {
+            "type": "object",
+            "required": [
+              "workspace",
+              "project",
+              "rootPath"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "workspace": {
+                "type": "string"
+              },
+              "project": {
+                "type": "string"
+              },
+              "rootPath": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "grepaiSearch.liveSearch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Search as you type (debounced). Only runs for scopes that resolve without a folder prompt."
+        },
+        "grepaiSearch.liveSearchDelayMs": {
+          "type": "number",
+          "default": 350,
+          "minimum": 100,
+          "maximum": 2000,
+          "description": "Debounce delay for live search, in milliseconds."
+        },
+        "grepaiSearch.groupByFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Group GrepAI results by file when a file has multiple hits."
+        },
+        "grepaiSearch.traceMode": {
+          "type": "string",
+          "enum": ["fast", "precise"],
+          "default": "precise",
+          "description": "Symbol extraction mode for call-graph tracing."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "grepaiSearch",
+          "title": "GrepAI",
+          "icon": "resources/grepai.svg"
+        }
+      ]
+    },
+    "views": {
+      "grepaiSearch": [
+        {
+          "type": "webview",
+          "id": "grepaiSearch.view",
+          "name": "GrepAI Search"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "test": "vitest",
+    "package": "npm run compile && vsce package --allow-missing-repository --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.6.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
