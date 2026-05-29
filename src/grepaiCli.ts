@@ -12,12 +12,6 @@ export interface RunGrepaiInput extends SearchArgsInput {
   signal?: AbortSignal;
 }
 
-export interface RunStatusInput {
-  executablePath: string;
-  cwd: string;
-  signal?: AbortSignal;
-}
-
 export interface ProcessOutput {
   stdout: string;
   stderr: string;
@@ -156,10 +150,6 @@ export async function runGrepaiSearch(input: RunGrepaiInput): Promise<Normalized
   }
 
   return normalizeResults(parseSearchResults(output.stdout), input.cwd);
-}
-
-export async function runGrepaiStatus(input: RunStatusInput): Promise<ProcessOutput> {
-  return runProcess(input.executablePath, buildStatusArgs(), input.cwd, input.signal);
 }
 
 export function runProcess(
