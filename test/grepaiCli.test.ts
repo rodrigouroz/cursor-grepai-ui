@@ -209,6 +209,44 @@ describe("parseWorkspaceStatus", () => {
   });
 });
 
+import {
+  buildWorkspaceListArgs,
+  parseWorkspaceList,
+  parseWorkspaceProjects,
+} from "../src/grepaiCli";
+
+describe("buildWorkspaceListArgs", () => {
+  test("lists workspaces", () => {
+    expect(buildWorkspaceListArgs()).toEqual(["workspace", "list"]);
+  });
+});
+
+describe("parseWorkspaceList", () => {
+  test("extracts 2-space-indented workspace names, ignoring header and detail lines", () => {
+    const text = ["Workspaces (2):", "", "  acme", "    Backend: qdrant", "    Projects: 2", "  other-ws", "    Backend: gob"].join("\n");
+    expect(parseWorkspaceList(text)).toEqual(["acme", "other-ws"]);
+  });
+
+  test("handles zero workspaces", () => {
+    expect(parseWorkspaceList("Workspaces (0):\n")).toEqual([]);
+  });
+});
+
+describe("parseWorkspaceProjects", () => {
+  test("parses project, rootPath, and indexed flag", () => {
+    const text = [
+      "Workspace: acme",
+      "  Projects: 2",
+      "    - api: /Users/x/Projects/api ✓",
+      "    - web: /Users/x/Projects/web",
+    ].join("\n");
+    expect(parseWorkspaceProjects(text)).toEqual([
+      { project: "api", rootPath: "/Users/x/Projects/api", indexed: true },
+      { project: "web", rootPath: "/Users/x/Projects/web", indexed: false },
+    ]);
+  });
+});
+
 import { buildTraceArgs } from "../src/grepaiCli";
 
 describe("buildTraceArgs", () => {

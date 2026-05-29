@@ -45,6 +45,39 @@ export function buildWorkspaceStatusArgs(workspace: string): string[] {
   return ["workspace", "status", workspace];
 }
 
+export function buildWorkspaceListArgs(): string[] {
+  return ["workspace", "list"];
+}
+
+export function parseWorkspaceList(text: string): string[] {
+  // Workspace names are exactly-2-space-indented bare tokens (detail lines are 4-space indented).
+  return text
+    .split(/\r?\n/)
+    .map((line) => /^ {2}(\S+)\s*$/.exec(line))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => m[1]);
+}
+
+export interface DiscoveredProject {
+  project: string;
+  rootPath: string;
+  indexed: boolean;
+}
+
+export function parseWorkspaceProjects(text: string): DiscoveredProject[] {
+  const out: DiscoveredProject[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*-\s*([^:]+):\s*(.+)$/.exec(line);
+    if (!m) continue;
+    const project = m[1].trim();
+    const rest = m[2].trim();
+    const indexed = rest.endsWith("✓");
+    const rootPath = (indexed ? rest.slice(0, -1) : rest).trim();
+    out.push({ project, rootPath, indexed });
+  }
+  return out;
+}
+
 export function buildWatchStatusArgs(workspace?: string): string[] {
   const args = ["watch", "--status"];
   if (workspace) args.push("--workspace", workspace);
@@ -98,14 +131,8 @@ export function parseLocalStatus(text: string): LocalStatus {
 }
 
 export function parseWorkspaceStatus(text: string, project: string): { indexed: boolean } {
-  const line = text
-    .split(/\r?\n/)
-    .find((raw) => new RegExp(`^\\s*-\\s*${escapeRegExp(project)}:`).test(raw));
-  return { indexed: Boolean(line && line.includes("✓")) };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = parseWorkspaceProjects(text).find((p) => p.project === project);
+  return { indexed: Boolean(found?.indexed) };
 }
 
 export function parseSearchResults(stdout: string): RawGrepaiResult[] {

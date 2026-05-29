@@ -37,6 +37,37 @@ export function mergeProjects(
   return merged;
 }
 
+export function buildDiscoveredProjects(
+  workspaceNames: string[],
+  projectsByWorkspace: Record<string, { project: string; rootPath: string; indexed: boolean }[]>,
+): WorkspaceProject[] {
+  const out: WorkspaceProject[] = [];
+  for (const workspace of workspaceNames) {
+    for (const p of projectsByWorkspace[workspace] ?? []) {
+      if (!p.indexed) continue; // only indexed projects are searchable scopes
+      out.push({ label: `${workspace}: ${p.project}`, workspace, project: p.project, rootPath: p.rootPath });
+    }
+  }
+  return out;
+}
+
+// Dedupe by workspace/project (NOT rootPath); manual entries win over discovered.
+export function mergeScopes(
+  manual: WorkspaceProject[],
+  discovered: WorkspaceProject[],
+): WorkspaceProject[] {
+  const seen = new Set<string>();
+  const merged: WorkspaceProject[] = [];
+  for (const project of [...manual, ...discovered]) {
+    const key = `${project.workspace}/${project.project}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(project);
+    }
+  }
+  return merged;
+}
+
 export function findProjectForRoot(
   rootPath: string,
   projects: WorkspaceProject[],
