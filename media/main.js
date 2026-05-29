@@ -80,17 +80,56 @@ export function init(vscode, doc = document) {
     );
   }
 
+  function actionButton(action, label, svg) {
+    return (
+      '<button class="result-action" type="button"' +
+      ' data-action="' + action + '"' +
+      ' title="' + escapeHtml(label) + '"' +
+      ' aria-label="' + escapeHtml(label) + '">' +
+      svg +
+      "</button>"
+    );
+  }
+
+  function actionsHtml() {
+    return (
+      '<div class="result-actions">' +
+      actionButton(
+        "openSide",
+        "Open to the side",
+        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M2 2h5v12H2V2zm7 0h5v12H9V2z"/></svg>',
+      ) +
+      actionButton(
+        "revealResult",
+        "Reveal in Explorer",
+        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M1 3h5l1 1h8v9H1V3z"/></svg>',
+      ) +
+      actionButton(
+        "copyResult",
+        "Copy as context",
+        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M5 1h6l3 3v9H5V1zm-2 3H2v11h9v-1H3V4z"/></svg>',
+      ) +
+      actionButton(
+        "sendResultToChat",
+        "Send to chat",
+        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M1 2h14v9H6l-4 3v-3H1V2z"/></svg>',
+      ) +
+      "</div>"
+    );
+  }
+
   function cardHtml(item) {
     return (
-      '<button class="result" type="button" data-id="' + escapeHtml(item.id) +
+      '<div class="result" role="button" tabindex="0" data-id="' + escapeHtml(item.id) +
       '" data-symbol="' + escapeHtml(deriveSymbol(item.preview)) + '">' +
+      actionsHtml() +
       pathHtml(item.displayPath) +
       '<div class="meta" title="score ' + escapeHtml(Number(item.score).toFixed(3)) + '">' +
       "L" + escapeHtml(item.startLine) + "-" + escapeHtml(item.endLine) +
       ' · <span class="strength">' + escapeHtml(item.label) + "</span></div>" +
       '<div class="score-bar"><span style="width:' + escapeHtml(item.barWidth) + '%"></span></div>' +
       '<div class="preview">' + highlight(item.preview, languageFromPath(item.displayPath)) + "</div>" +
-      "</button>"
+      "</div>"
     );
   }
 
@@ -290,6 +329,17 @@ export function init(vscode, doc = document) {
   }
 
   results.addEventListener("click", (event) => {
+    const action = event.target.closest(".result-action");
+    if (action) {
+      const card = action.closest(".result");
+      if (!card) return;
+      if (action.dataset.action === "openSide") {
+        vscode.postMessage({ type: "openResult", id: card.dataset.id, mode: "beside" });
+      } else {
+        vscode.postMessage({ type: action.dataset.action, id: card.dataset.id });
+      }
+      return;
+    }
     const target = event.target.closest(".result");
     if (!target) return;
     const mode = event.altKey ? "beside" : event.metaKey || event.ctrlKey ? "active" : "preview";
