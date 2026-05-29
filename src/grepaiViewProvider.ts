@@ -13,6 +13,7 @@ import { filterExistingResults } from "./resultFilter";
 import type { NormalizedGrepaiResult } from "./resultModel";
 import { getWebviewHtml } from "./webviewHtml";
 import { resolveOpenOptions, type OpenMode } from "./openMode";
+import { formatRelativeTime } from "./relativeTime";
 
 interface FolderOption {
   id: string;
@@ -414,7 +415,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       let detail: string;
       if (indexed) {
         const parsed = parseLocalStatus(statusOut.stdout);
-        detail = `Index ready · last indexed ${parsed.lastUpdated}`;
+        detail = `Index ready · last indexed ${formatRelativeTime(parsed.lastUpdated)}`;
       } else {
         detail = "No search index here — run `grepai init` to enable search";
       }
