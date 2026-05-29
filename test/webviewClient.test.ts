@@ -6,8 +6,7 @@ function mountShell() {
   document.body.innerHTML = `
     <form id="form">
       <input id="query" type="search">
-      <select id="scope"></select>
-      <button id="refresh-scopes">Refresh scopes</button>
+      <label id="folder-row"><select id="folder"></select></label>
       <select id="limit">
         <option value="8">8</option>
         <option value="25">25</option>
@@ -65,7 +64,7 @@ describe("limit control", () => {
 
     window.dispatchEvent(
       new MessageEvent("message", {
-        data: { type: "state", defaultLimit: 10, scopes: [] },
+        data: { type: "state", defaultLimit: 10, folders: [] },
       }),
     );
 
@@ -102,6 +101,7 @@ describe("open modes", () => {
       new MessageEvent("message", {
         data: {
           type: "results",
+          folderId: "",
           results: [{ id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" }],
         },
       }),
@@ -126,6 +126,7 @@ describe("index health badge", () => {
       new MessageEvent("message", {
         data: {
           type: "status",
+          folderId: "",
           statusToken: "tok1",
           indexed: true,
           detail: "indexed · updated 2h ago",
@@ -142,28 +143,13 @@ describe("index health badge", () => {
     expect(vscode.posted).toContainEqual({ type: "startWatcher", statusToken: "tok1" });
   });
 
-  test("neutral and unavailable statuses show hints without a watcher button", () => {
-    const vscode = fakeVscode();
-    init(vscode, document);
-    const badge = document.getElementById("badge")!;
-
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "status", neutral: true } }));
-    expect(badge.hidden).toBe(false);
-    expect(badge.textContent).toBe("select a scope or search");
-    expect(badge.querySelector("button")).toBeNull();
-
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "status", unavailable: true } }));
-    expect(badge.textContent).toBe("status unavailable");
-    expect(badge.querySelector("button")).toBeNull();
-  });
-
   test("a status with canStartWatcher false shows detail but no button", () => {
     const vscode = fakeVscode();
     init(vscode, document);
 
     window.dispatchEvent(
       new MessageEvent("message", {
-        data: { type: "status", statusToken: "t", indexed: true, detail: "indexed ✓ · watching", canStartWatcher: false },
+        data: { type: "status", folderId: "", statusToken: "t", indexed: true, detail: "indexed ✓ · watching", canStartWatcher: false },
       }),
     );
 
@@ -172,7 +158,72 @@ describe("index health badge", () => {
     expect(badge.querySelector("button")).toBeNull();
   });
 
-  test("changing the scope requests a status refresh for the new scope", () => {
+  test("a status for a non-selected folder is ignored as stale", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "other", statusToken: "t", indexed: true, detail: "stale", canStartWatcher: false },
+      }),
+    );
+
+    const badge = document.getElementById("badge")!;
+    expect(badge.hidden).toBe(true);
+  });
+
+  test("indexed:false disables query, search and trace controls; indexed:true enables them", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    const query = document.getElementById("query") as HTMLInputElement;
+    const search = document.getElementById("search") as HTMLButtonElement;
+    const traceRun = document.getElementById("trace-run") as HTMLButtonElement;
+    const traceSymbol = document.getElementById("trace-symbol") as HTMLInputElement;
+    const traceFromFocused = document.getElementById("trace-from-focused") as HTMLButtonElement;
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "", statusToken: "t", indexed: false, detail: "not indexed", canStartWatcher: true },
+      }),
+    );
+    expect(document.getElementById("badge")!.textContent).toContain("not indexed");
+    expect(query.disabled).toBe(true);
+    expect(search.disabled).toBe(true);
+    expect(traceRun.disabled).toBe(true);
+    expect(traceSymbol.disabled).toBe(true);
+    expect(traceFromFocused.disabled).toBe(true);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "", statusToken: "t", indexed: true, detail: "indexed", canStartWatcher: false },
+      }),
+    );
+    expect(query.disabled).toBe(false);
+    expect(search.disabled).toBe(false);
+    expect(traceRun.disabled).toBe(false);
+    expect(traceSymbol.disabled).toBe(false);
+    expect(traceFromFocused.disabled).toBe(false);
+  });
+
+  test("switching to an unindexed folder clears stale results and trace panel", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+
+    document.getElementById("results")!.innerHTML = '<button class="result">old</button>';
+    document.getElementById("trace-results")!.innerHTML = '<div class="trace-node">old</div>';
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "", statusToken: "t", indexed: false, detail: "not indexed", canStartWatcher: true },
+      }),
+    );
+
+    expect(document.querySelectorAll("#results .result")).toHaveLength(0);
+    expect(document.getElementById("trace-results")!.innerHTML).toBe("");
+  });
+
+  test("changing the folder requests a status refresh for the new folder", () => {
     const vscode = fakeVscode();
     init(vscode, document);
 
@@ -181,24 +232,24 @@ describe("index health badge", () => {
         data: {
           type: "state",
           defaultLimit: 8,
-          scopes: [
-            { id: "current", label: "Current", concrete: false },
-            { id: "acme/api", label: "api", concrete: true },
+          folders: [
+            { id: "a", label: "Folder A" },
+            { id: "b", label: "Folder B" },
           ],
         },
       }),
     );
 
-    const scope = document.getElementById("scope") as HTMLSelectElement;
-    scope.value = "acme/api";
-    scope.dispatchEvent(new Event("change"));
+    const folder = document.getElementById("folder") as HTMLSelectElement;
+    folder.value = "b";
+    folder.dispatchEvent(new Event("change"));
 
-    expect(vscode.posted).toContainEqual({ type: "refreshStatus", scopeId: "acme/api" });
+    expect(vscode.posted).toContainEqual({ type: "refreshStatus", folderId: "b" });
   });
 });
 
 describe("live search", () => {
-  test("debounced input searches only when the scope is concrete", () => {
+  test("debounced input searches only when the folder is indexed", () => {
     vi.useFakeTimers();
     const vscode = fakeVscode();
     init(vscode, document);
@@ -211,25 +262,30 @@ describe("live search", () => {
           liveSearch: true,
           liveSearchDelayMs: 200,
           groupByFile: true,
-          scopes: [
-            { id: "current", label: "Current folder", concrete: false },
-            { id: "acme/api", label: "api", concrete: true },
-          ],
+          folders: [{ id: "a", label: "Folder A" }],
         },
       }),
     );
 
     const query = document.getElementById("query") as HTMLInputElement;
 
-    // Non-concrete scope selected → no live search
-    (document.getElementById("scope") as HTMLSelectElement).value = "current";
+    // Folder not yet indexed → no live search
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "a", statusToken: "t", indexed: false, detail: "not indexed", canStartWatcher: true },
+      }),
+    );
     query.value = "auth";
     query.dispatchEvent(new Event("input"));
     vi.advanceTimersByTime(300);
     expect(vscode.posted.filter((m) => m.type === "search")).toHaveLength(0);
 
-    // Concrete scope → live search fires after debounce
-    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
+    // Folder indexed → live search fires after debounce
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "a", statusToken: "t", indexed: true, detail: "indexed", canStartWatcher: false },
+      }),
+    );
     query.value = "auth flow";
     query.dispatchEvent(new Event("input"));
     vi.advanceTimersByTime(300);
@@ -250,13 +306,17 @@ describe("live search", () => {
           defaultLimit: 8,
           liveSearch: false,
           liveSearchDelayMs: 200,
-          scopes: [{ id: "acme/api", label: "api", concrete: true }],
+          folders: [{ id: "a", label: "Folder A" }],
         },
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "a", statusToken: "t", indexed: true, detail: "indexed", canStartWatcher: false },
       }),
     );
 
     const query = document.getElementById("query") as HTMLInputElement;
-    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
     query.value = "auth";
     query.dispatchEvent(new Event("input"));
     vi.advanceTimersByTime(500);
@@ -275,6 +335,7 @@ describe("keyboard navigation", () => {
       new MessageEvent("message", {
         data: {
           type: "results",
+          folderId: "",
           results: [
             { id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" },
             { id: "1", displayPath: "b.ts", startLine: 3, endLine: 4, score: 0.4, preview: "y" },
@@ -296,6 +357,7 @@ describe("keyboard navigation", () => {
 
     const resultsMsg = {
       type: "results",
+      folderId: "",
       results: [{ id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" }],
     };
 
@@ -315,6 +377,7 @@ describe("keyboard navigation", () => {
 function traceResultsMsg(over: any) {
   return {
     type: "traceResults",
+    folderId: "",
     view: "tree",
     parentId: null,
     nodes: [{ nodeId: "n1", name: "doThing", location: "b.ts:10", locationId: "n1", expandable: true, symbolName: "doThing" }],
@@ -369,7 +432,7 @@ describe("trace tree", () => {
     document.getElementById("trace-run")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     const id = vscode.posted.find((m) => m.type === "trace").traceRequestId;
 
-    window.dispatchEvent(new MessageEvent("message", { data: { type: "traceError", traceRequestId: id, message: "nope" } }));
+    window.dispatchEvent(new MessageEvent("message", { data: { type: "traceError", folderId: "", traceRequestId: id, message: "nope" } }));
 
     expect(document.getElementById("trace-status")!.textContent).toContain("nope");
     expect(document.querySelectorAll("#results .result")).toHaveLength(1);
@@ -382,6 +445,7 @@ describe("trace tree", () => {
       new MessageEvent("message", {
         data: {
           type: "results",
+          folderId: "",
           results: [{ id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "function doStuff() {}" }],
         },
       }),
@@ -407,6 +471,7 @@ describe("trace graph", () => {
       new MessageEvent("message", {
         data: {
           type: "traceResults",
+          folderId: "",
           traceRequestId: id,
           view: "graph",
           parentId: null,
@@ -443,6 +508,7 @@ describe("trace graph", () => {
       new MessageEvent("message", {
         data: {
           type: "traceResults",
+          folderId: "",
           traceRequestId: id,
           view: "graph",
           parentId: null,
@@ -472,6 +538,7 @@ describe("group by file", () => {
       new MessageEvent("message", {
         data: {
           type: "results",
+          folderId: "",
           results: [
             { id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" },
             { id: "1", displayPath: "a.ts", startLine: 5, endLine: 6, score: 0.5, preview: "y" },
@@ -493,6 +560,7 @@ describe("group by file", () => {
       new MessageEvent("message", {
         data: {
           type: "results",
+          folderId: "",
           results: [
             { id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" },
             { id: "1", displayPath: "a.ts", startLine: 5, endLine: 6, score: 0.5, preview: "y" },
@@ -506,33 +574,30 @@ describe("group by file", () => {
   });
 });
 
-describe("scope discovery UX", () => {
-  test("preserves the selected scope across a state repost that still contains it", () => {
+describe("folder selector UX", () => {
+  test("preserves the selected folder across a state repost that still contains it", () => {
     const vscode = fakeVscode();
     init(vscode, document);
 
-    const stateMsg = (extra: any[]) => ({
+    const stateMsg = (folders: any[]) => ({
       type: "state",
       defaultLimit: 8,
-      scopes: [{ id: "current", label: "Current folder", concrete: false }, ...extra],
+      folders,
     });
 
-    // initial state: only Current folder
-    window.dispatchEvent(new MessageEvent("message", { data: stateMsg([]) }));
-    // user picks a discovered scope that arrives in a later repost
-    window.dispatchEvent(
-      new MessageEvent("message", { data: stateMsg([{ id: "acme/api", label: "acme: api", concrete: true }]) }),
-    );
-    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
+    const twoFolders = [
+      { id: "a", label: "Folder A" },
+      { id: "b", label: "Folder B" },
+    ];
+    window.dispatchEvent(new MessageEvent("message", { data: stateMsg(twoFolders) }));
+    (document.getElementById("folder") as HTMLSelectElement).value = "b";
 
-    // async repost still containing acme/api must NOT reset the selection
-    window.dispatchEvent(
-      new MessageEvent("message", { data: stateMsg([{ id: "acme/api", label: "acme: api", concrete: true }]) }),
-    );
-    expect((document.getElementById("scope") as HTMLSelectElement).value).toBe("acme/api");
+    // async repost still containing b must NOT reset the selection
+    window.dispatchEvent(new MessageEvent("message", { data: stateMsg(twoFolders) }));
+    expect((document.getElementById("folder") as HTMLSelectElement).value).toBe("b");
   });
 
-  test("falls back to the first option when the selected scope is gone from a repost", () => {
+  test("falls back to the first option when the selected folder is gone from a repost", () => {
     const vscode = fakeVscode();
     init(vscode, document);
 
@@ -541,28 +606,133 @@ describe("scope discovery UX", () => {
         data: {
           type: "state",
           defaultLimit: 8,
-          scopes: [
-            { id: "current", label: "Current folder", concrete: false },
-            { id: "acme/api", label: "acme: api", concrete: true },
+          folders: [
+            { id: "a", label: "Folder A" },
+            { id: "b", label: "Folder B" },
           ],
         },
       }),
     );
-    (document.getElementById("scope") as HTMLSelectElement).value = "acme/api";
+    (document.getElementById("folder") as HTMLSelectElement).value = "b";
 
-    // repost no longer contains acme/api → selection falls back to the first option
+    // repost no longer contains b → selection falls back to the first option
     window.dispatchEvent(
       new MessageEvent("message", {
-        data: { type: "state", defaultLimit: 8, scopes: [{ id: "current", label: "Current folder", concrete: false }] },
+        data: { type: "state", defaultLimit: 8, folders: [{ id: "a", label: "Folder A" }] },
       }),
     );
-    expect((document.getElementById("scope") as HTMLSelectElement).value).toBe("current");
+    expect((document.getElementById("folder") as HTMLSelectElement).value).toBe("a");
   });
 
-  test("the refresh control posts refreshScopes", () => {
+  test("the folder selector is hidden with one folder and shown with more than one", () => {
     const vscode = fakeVscode();
     init(vscode, document);
-    document.getElementById("refresh-scopes")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(vscode.posted).toContainEqual({ type: "refreshScopes" });
+
+    const folderRow = document.getElementById("folder-row") as HTMLElement;
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "state", defaultLimit: 8, folders: [{ id: "a", label: "Folder A" }] },
+      }),
+    );
+    expect(folderRow.hidden).toBe(true);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "state",
+          defaultLimit: 8,
+          folders: [
+            { id: "a", label: "Folder A" },
+            { id: "b", label: "Folder B" },
+          ],
+        },
+      }),
+    );
+    expect(folderRow.hidden).toBe(false);
+  });
+});
+
+describe("stale cross-folder responses", () => {
+  function selectFolderA(vscode: ReturnType<typeof fakeVscode>) {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "state",
+          defaultLimit: 8,
+          folders: [
+            { id: "a", label: "Folder A" },
+            { id: "b", label: "Folder B" },
+          ],
+        },
+      }),
+    );
+    (document.getElementById("folder") as HTMLSelectElement).value = "a";
+    // mark folder A indexed so search/trace controls are enabled
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "a", statusToken: "t", indexed: true, detail: "indexed", canStartWatcher: false },
+      }),
+    );
+  }
+
+  test("a results message tagged for another folder is ignored", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+    selectFolderA(vscode);
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "results",
+          folderId: "b",
+          results: [{ id: "0", displayPath: "a.ts", startLine: 1, endLine: 2, score: 0.9, preview: "x" }],
+        },
+      }),
+    );
+
+    expect(document.querySelectorAll("#results .result")).toHaveLength(0);
+  });
+
+  test("a traceResults message tagged for another folder is ignored", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+    selectFolderA(vscode);
+
+    (document.getElementById("trace-symbol") as HTMLInputElement).value = "search";
+    document.getElementById("trace-run")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const id = vscode.posted.find((m) => m.type === "trace").traceRequestId;
+
+    window.dispatchEvent(new MessageEvent("message", { data: traceResultsMsg({ folderId: "b", traceRequestId: id }) }));
+    expect(document.querySelectorAll("#trace-results .trace-node")).toHaveLength(0);
+  });
+
+  test("a traceError message tagged for another folder is ignored", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+    selectFolderA(vscode);
+
+    (document.getElementById("trace-symbol") as HTMLInputElement).value = "search";
+    document.getElementById("trace-run")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const id = vscode.posted.find((m) => m.type === "trace").traceRequestId;
+
+    window.dispatchEvent(
+      new MessageEvent("message", { data: { type: "traceError", folderId: "b", traceRequestId: id, message: "nope" } }),
+    );
+    expect(document.getElementById("trace-status")!.textContent).not.toContain("nope");
+  });
+
+  test("an error message tagged for another folder is ignored", () => {
+    const vscode = fakeVscode();
+    init(vscode, document);
+    selectFolderA(vscode);
+    document.getElementById("results")!.innerHTML = '<button class="result">kept</button>';
+
+    window.dispatchEvent(
+      new MessageEvent("message", { data: { type: "error", folderId: "b", message: "boom" } }),
+    );
+
+    expect(document.querySelectorAll("#results .result")).toHaveLength(1);
+    expect(document.getElementById("status")!.textContent).not.toBe("boom");
   });
 });

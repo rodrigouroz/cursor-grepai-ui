@@ -20,18 +20,24 @@ export function init(vscode, doc = document) {
   const view = doc.defaultView ?? window;
   const form = doc.getElementById("form");
   const query = doc.getElementById("query");
-  const scope = doc.getElementById("scope");
+  const folder = doc.getElementById("folder");
+  const folderRow = doc.getElementById("folder-row");
   const status = doc.getElementById("status");
   const results = doc.getElementById("results");
   const limit = doc.getElementById("limit");
   const badge = doc.getElementById("badge");
+  const searchBtn = doc.getElementById("search");
   let defaultLimit = 8;
   let statusToken = null;
   let lastSearchExplicit = false;
   let liveSearch = false;
   let liveDelay = 350;
-  const concreteById = new Map();
+  let folderIndexed = false;
   let debounceTimer = null;
+
+  function selectedFolderId() {
+    return folder ? folder.value : "";
+  }
 
   const traceSymbol = doc.getElementById("trace-symbol");
   const traceDirection = doc.getElementById("trace-direction");
@@ -45,7 +51,6 @@ export function init(vscode, doc = document) {
   let currentTraceReqId = 0;
   let traceMode = "precise";
 
-  const refreshScopesBtn = doc.getElementById("refresh-scopes");
   const groupToggle = doc.getElementById("group-toggle");
   let groupByFileEnabled = false; // matches the unchecked checkbox until `state` (or persisted prefs) sets it
   let lastResults = [];
@@ -101,7 +106,7 @@ export function init(vscode, doc = document) {
     vscode.postMessage({
       type: "search",
       query: query.value,
-      scopeId: scope.value,
+      folderId: selectedFolderId(),
       limit: limit ? Number(limit.value) || defaultLimit : defaultLimit,
     });
   }
@@ -115,17 +120,17 @@ export function init(vscode, doc = document) {
     runSearch(true);
   });
 
-  scope.addEventListener("change", () => {
-    vscode.postMessage({ type: "refreshStatus", scopeId: scope.value });
+  folder.addEventListener("change", () => {
+    results.innerHTML = "";
+    traceResultsEl.innerHTML = "";
+    traceStatus.textContent = "";
+    status.textContent = "";
+    vscode.postMessage({ type: "refreshStatus", folderId: selectedFolderId() });
   });
-
-  if (refreshScopesBtn) {
-    refreshScopesBtn.addEventListener("click", () => vscode.postMessage({ type: "refreshScopes" }));
-  }
 
   query.addEventListener("input", () => {
     if (!liveSearch) return;
-    if (!concreteById.get(scope.value)) return;
+    if (!folderIndexed) return;
     if (!query.value.trim()) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => runSearch(false), liveDelay);
@@ -143,7 +148,7 @@ export function init(vscode, doc = document) {
     vscode.postMessage({
       type: "trace",
       traceRequestId: currentTraceReqId,
-      scopeId: scope.value,
+      folderId: selectedFolderId(),
       symbol,
       direction: traceDirection.value,
       mode: traceMode,
@@ -291,17 +296,17 @@ export function init(vscode, doc = document) {
   view.addEventListener("message", (event) => {
     const message = event.data;
     if (message.type === "state") {
-      const previousScope = scope.value;
-      concreteById.clear();
-      scope.innerHTML = message.scopes
-        .map((item) => {
-          concreteById.set(item.id, Boolean(item.concrete));
-          return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.label) + "</option>";
-        })
+      const previousFolder = folder.value;
+      folder.innerHTML = message.folders
+        .map(
+          (item) =>
+            '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.label) + "</option>",
+        )
         .join("");
-      if (previousScope && Array.from(scope.options).some((o) => o.value === previousScope)) {
-        scope.value = previousScope;
+      if (previousFolder && Array.from(folder.options).some((o) => o.value === previousFolder)) {
+        folder.value = previousFolder;
       }
+      if (folderRow) folderRow.hidden = message.folders.length <= 1;
       defaultLimit = Number(message.defaultLimit || 8);
       if (limit) {
         const hasOption = Array.from(limit.options).some((o) => Number(o.value) === defaultLimit);
@@ -319,10 +324,11 @@ export function init(vscode, doc = document) {
       groupByFileEnabled = (vscode.getState?.()?.groupByFile) ?? Boolean(message.groupByFile);
       if (groupToggle) groupToggle.checked = groupByFileEnabled;
       status.textContent = "Ready";
-      vscode.postMessage({ type: "refreshStatus", scopeId: scope.value });
+      vscode.postMessage({ type: "refreshStatus", folderId: selectedFolderId() });
     }
     if (message.type === "searching") status.textContent = "Searching...";
     if (message.type === "results") {
+      if (message.folderId !== selectedFolderId()) return;
       status.textContent = message.results.length ? message.results.length + " result(s)" : "No results";
       renderResults(message.results);
       const first = results.querySelector(".result");
@@ -330,38 +336,48 @@ export function init(vscode, doc = document) {
       lastSearchExplicit = false; // consume-once: later (e.g. live-search) renders must not grab focus
     }
     if (message.type === "error") {
+      if (message.folderId !== undefined && message.folderId !== selectedFolderId()) return;
       status.textContent = message.message;
       results.innerHTML = "";
     }
     if (message.type === "traceResults") {
       if (message.traceRequestId !== currentTraceReqId) return;
+      if (message.folderId !== selectedFolderId()) return;
       if (message.view === "graph") renderTraceGraph(message);
       else renderTraceTree(message);
     }
     if (message.type === "traceError") {
       if (message.traceRequestId !== currentTraceReqId) return;
+      if (message.folderId !== selectedFolderId()) return;
       traceStatus.textContent = message.message;
     }
     if (message.type === "status") {
-      if (!badge) return;
-      if (message.neutral || message.unavailable) {
-        statusToken = null;
+      if (message.folderId !== selectedFolderId()) return;
+      folderIndexed = Boolean(message.indexed);
+      if (badge) {
+        statusToken = message.statusToken;
         badge.hidden = false;
-        badge.textContent = message.unavailable ? "status unavailable" : "select a scope or search";
-        return;
+        badge.textContent = message.detail; // textContent assignment also clears any prior Start-watcher button
+        if (message.canStartWatcher) {
+          const button = doc.createElement("button");
+          button.type = "button";
+          button.className = "badge-action";
+          button.textContent = "Start watcher";
+          button.addEventListener("click", () => {
+            vscode.postMessage({ type: "startWatcher", statusToken });
+          });
+          badge.appendChild(button);
+        }
       }
-      statusToken = message.statusToken;
-      badge.hidden = false;
-      badge.textContent = message.detail; // textContent assignment also clears any prior Start-watcher button
-      if (message.canStartWatcher) {
-        const button = doc.createElement("button");
-        button.type = "button";
-        button.className = "badge-action";
-        button.textContent = "Start watcher";
-        button.addEventListener("click", () => {
-          vscode.postMessage({ type: "startWatcher", statusToken });
-        });
-        badge.appendChild(button);
+      query.disabled = !folderIndexed;
+      if (searchBtn) searchBtn.disabled = !folderIndexed;
+      if (traceRun) traceRun.disabled = !folderIndexed;
+      if (traceSymbol) traceSymbol.disabled = !folderIndexed;
+      if (traceFromFocused) traceFromFocused.disabled = !folderIndexed;
+      if (!folderIndexed) {
+        results.innerHTML = "";
+        traceResultsEl.innerHTML = "";
+        traceStatus.textContent = "";
       }
     }
   });

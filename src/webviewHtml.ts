@@ -24,11 +24,10 @@ export function getWebviewHtml(input: WebviewHtmlInput): string {
       <input id="query" type="search" placeholder="Search code semantically" autocomplete="off" list="history">
     </label>
     <datalist id="history"></datalist>
-    <label>
-      Scope
-      <select id="scope"></select>
+    <label id="folder-row">
+      Folder
+      <select id="folder"></select>
     </label>
-    <button id="refresh-scopes" class="link-button" type="button" title="Re-scan grepai workspaces">Refresh scopes</button>
     <label>
       Results
       <select id="limit">

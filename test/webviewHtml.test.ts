@@ -13,7 +13,7 @@ describe("getWebviewHtml", () => {
     const html = getWebviewHtml(input);
 
     expect(html).toContain('id="query"');
-    expect(html).toContain('id="scope"');
+    expect(html).toContain('id="folder"');
     expect(html).toContain('id="limit"');
     expect(html).toContain('id="search"');
     expect(html).toContain('nonce="abc123"');
