@@ -28,13 +28,19 @@ export async function discoverWorkspaceScopes(
     const names = parseWorkspaceList(list.stdout);
     const byWorkspace: Record<string, DiscoveredProject[]> = {};
     for (const name of names) {
-      const status = await run(
-        executablePath,
-        buildWorkspaceStatusArgs(name),
-        cwd,
-        AbortSignal.timeout(timeoutMs),
-      );
-      byWorkspace[name] = status.exitCode === 0 ? parseWorkspaceProjects(status.stdout) : [];
+      // Isolate per-workspace failures so one hung/erroring `workspace status`
+      // doesn't discard the workspaces already discovered.
+      try {
+        const status = await run(
+          executablePath,
+          buildWorkspaceStatusArgs(name),
+          cwd,
+          AbortSignal.timeout(timeoutMs),
+        );
+        byWorkspace[name] = status.exitCode === 0 ? parseWorkspaceProjects(status.stdout) : [];
+      } catch {
+        byWorkspace[name] = [];
+      }
     }
     return buildDiscoveredProjects(names, byWorkspace);
   } catch {

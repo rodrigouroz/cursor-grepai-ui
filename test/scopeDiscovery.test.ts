@@ -33,4 +33,20 @@ describe("discoverWorkspaceScopes", () => {
     };
     expect(await discoverWorkspaceScopes("grepai", "/cwd", run)).toEqual([]);
   });
+
+  test("one workspace's failing status does not discard the others", async () => {
+    const run = async (_cmd: string, args: string[]) => {
+      const key = args.join(" ");
+      if (key === "workspace list") {
+        return { stdout: "Workspaces (2):\n\n  acme\n  beta\n", stderr: "", exitCode: 0 };
+      }
+      if (key === "workspace status acme") {
+        return { stdout: "  Projects: 1\n    - api: /p/api ✓\n", stderr: "", exitCode: 0 };
+      }
+      throw new Error("GrepAI request cancelled"); // beta's status hangs/aborts
+    };
+    expect(await discoverWorkspaceScopes("grepai", "/cwd", run)).toEqual([
+      { label: "acme: api", workspace: "acme", project: "api", rootPath: "/p/api" },
+    ]);
+  });
 });

@@ -17,7 +17,8 @@
   ],
   "activationEvents": [
     "onView:grepaiSearch.view",
-    "onCommand:grepaiSearch.open"
+    "onCommand:grepaiSearch.open",
+    "onCommand:grepaiSearch.refreshScopes"
   ],
   "main": "./out/extension.js",
   "contributes": {
