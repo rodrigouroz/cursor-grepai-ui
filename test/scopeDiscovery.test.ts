@@ -26,4 +26,11 @@ describe("discoverWorkspaceScopes", () => {
     const run = fakeRunner({ "workspace list": { exitCode: 1 } });
     expect(await discoverWorkspaceScopes("grepai", "/cwd", run)).toEqual([]);
   });
+
+  test("returns [] when the runner rejects (e.g. timeout/abort)", async () => {
+    const run = async () => {
+      throw new Error("GrepAI request cancelled");
+    };
+    expect(await discoverWorkspaceScopes("grepai", "/cwd", run)).toEqual([]);
+  });
 });

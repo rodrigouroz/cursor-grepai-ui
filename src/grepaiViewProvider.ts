@@ -71,6 +71,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   private traceLocations = new Map<string, { filePath: string; line: number }>();
   private locationSeq = 0;
   private discoveredScopes: WorkspaceProject[] = [];
+  private scopesDiscovered = false;
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -101,7 +102,10 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   private async handleMessage(message: WebviewMessage): Promise<void> {
     if (message.type === "ready") {
       this.postState();
-      void this.refreshScopes();
+      if (!this.scopesDiscovered) {
+        this.scopesDiscovered = true;
+        void this.refreshScopes();
+      }
       return;
     }
 
