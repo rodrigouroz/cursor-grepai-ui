@@ -791,13 +791,13 @@ describe("result actions", () => {
     );
   }
 
-  test("each card renders the four action buttons with accessible labels", () => {
+  test("each card renders the three action buttons with accessible labels", () => {
     const vscode = fakeVscode();
     renderOneResult(vscode);
     const actions = Array.from(document.querySelectorAll(".result .result-action")).map(
       (b) => (b as HTMLButtonElement).dataset.action,
     );
-    expect(actions).toEqual(["openSide", "revealResult", "copyResult", "sendResultToChat"]);
+    expect(actions).toEqual(["openSide", "revealResult", "copyResult"]);
     const reveal = document.querySelector('.result-action[data-action="revealResult"]')!;
     expect(reveal.getAttribute("aria-label")).toBe("Reveal in Explorer");
   });

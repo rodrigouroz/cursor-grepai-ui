@@ -109,11 +109,6 @@ export function init(vscode, doc = document) {
         "Copy as context",
         '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M5 1h6l3 3v9H5V1zm-2 3H2v11h9v-1H3V4z"/></svg>',
       ) +
-      actionButton(
-        "sendResultToChat",
-        "Send to chat",
-        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M1 2h14v9H6l-4 3v-3H1V2z"/></svg>',
-      ) +
       "</div>"
     );
   }
