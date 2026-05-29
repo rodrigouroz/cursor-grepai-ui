@@ -1,9 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { formatRelativeTime } from "../src/relativeTime";
 
-// grepai emits local timestamps like "2026-05-29 12:49:04". We parse the same
-// way for `now` so these assertions are timezone-independent.
-const NOW = new Date("2026-05-29 13:49:04");
+// Constructed from explicit local components (not a parsed string) so the
+// suite is deterministic on any host timezone — mirroring how the formatter
+// parses grepai's space-separated, zoneless timestamps as local.
+const NOW = new Date(2026, 4, 29, 13, 49, 4); // 2026-05-29 13:49:04 local
 
 describe("formatRelativeTime", () => {
   test("seconds ago", () => {
@@ -42,5 +43,14 @@ describe("formatRelativeTime", () => {
 
   test("future timestamps (clock skew) clamp to just now", () => {
     expect(formatRelativeTime("2026-05-29 13:50:04", NOW)).toBe("just now");
+  });
+
+  // Regression: a zoneless grepai timestamp must be read as LOCAL time, not UTC.
+  // Date.parse handles the space and "T" forms inconsistently across engines
+  // (the Cursor extension host read the space form as UTC, shifting the result
+  // by the local offset). Both forms must agree and match the wall-clock diff.
+  test("zoneless timestamps are parsed as local regardless of separator", () => {
+    expect(formatRelativeTime("2026-05-29 12:49:04", NOW)).toBe("1 hour ago");
+    expect(formatRelativeTime("2026-05-29T12:49:04", NOW)).toBe("1 hour ago");
   });
 });

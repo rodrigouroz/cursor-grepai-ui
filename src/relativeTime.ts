@@ -10,6 +10,21 @@ function ago(value: number, unit: string): string {
   return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 }
 
+// grepai emits "YYYY-MM-DD HH:mm:ss" with no timezone. That space-separated
+// form is NOT a standard date string, so `Date.parse` is engine-dependent:
+// some V8 builds read it as local, others (e.g. the Cursor extension host) as
+// UTC — which shifts "time ago" by the local UTC offset. Parse the components
+// by hand and construct a LOCAL Date so the result is deterministic. Anything
+// that doesn't match falls back to Date.parse (handles ISO-with-zone etc.).
+function parseTimestampMs(value: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (m) {
+    const [, y, mo, d, h, min, s] = m;
+    return new Date(+y, +mo - 1, +d, +h, +min, s ? +s : 0).getTime();
+  }
+  return Date.parse(value);
+}
+
 /**
  * Render a timestamp as a human "time ago" string relative to `now`.
  *
@@ -23,7 +38,7 @@ export function formatRelativeTime(timestamp: string, now: Date = new Date()): s
   const trimmed = (timestamp ?? "").trim();
   if (!trimmed || /^never$/i.test(trimmed)) return "never";
 
-  const ms = Date.parse(trimmed);
+  const ms = parseTimestampMs(trimmed);
   if (Number.isNaN(ms)) return trimmed;
 
   const secs = Math.max(0, Math.round((now.getTime() - ms) / 1000));
