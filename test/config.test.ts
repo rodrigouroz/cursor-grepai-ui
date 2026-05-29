@@ -52,4 +52,11 @@ describe("mergeScopes", () => {
       { label: "acme: web", workspace: "acme", project: "web", rootPath: "/p/web" },
     ]);
   });
+
+  test("handles empty inputs on either side", () => {
+    const discovered = [{ label: "acme: api", workspace: "acme", project: "api", rootPath: "/p/api" }];
+    expect(mergeScopes([], [])).toEqual([]);
+    expect(mergeScopes([], discovered)).toEqual(discovered);
+    expect(mergeScopes(discovered, [])).toEqual(discovered);
+  });
 });

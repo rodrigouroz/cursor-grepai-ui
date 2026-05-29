@@ -245,6 +245,13 @@ describe("parseWorkspaceProjects", () => {
       { project: "web", rootPath: "/Users/x/Projects/web", indexed: false },
     ]);
   });
+
+  test("handles CRLF line endings and rootPaths containing spaces", () => {
+    const text = "  Projects: 1\r\n    - api: /Users/x/My Projects/api ✓\r\n";
+    expect(parseWorkspaceProjects(text)).toEqual([
+      { project: "api", rootPath: "/Users/x/My Projects/api", indexed: true },
+    ]);
+  });
 });
 
 import { buildTraceArgs } from "../src/grepaiCli";

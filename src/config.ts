@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { DiscoveredProject } from "./grepaiCli";
 
 export interface WorkspaceProject {
   label: string;
@@ -19,6 +20,9 @@ export function getDefaultProjects(): WorkspaceProject[] {
   return [];
 }
 
+// Dedupes by the full workspace/project/rootPath triple (settings merge).
+// To merge manual + auto-discovered scopes — where the same workspace/project may
+// have a different rootPath and must collapse to one dropdown entry — use mergeScopes.
 export function mergeProjects(
   defaults: WorkspaceProject[],
   configured: WorkspaceProject[],
@@ -39,7 +43,7 @@ export function mergeProjects(
 
 export function buildDiscoveredProjects(
   workspaceNames: string[],
-  projectsByWorkspace: Record<string, { project: string; rootPath: string; indexed: boolean }[]>,
+  projectsByWorkspace: Record<string, DiscoveredProject[]>,
 ): WorkspaceProject[] {
   const out: WorkspaceProject[] = [];
   for (const workspace of workspaceNames) {
