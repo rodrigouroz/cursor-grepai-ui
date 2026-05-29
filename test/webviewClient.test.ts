@@ -462,6 +462,12 @@ describe("trace graph", () => {
   test("renders nodes and edges, each opening a location", () => {
     const vscode = fakeVscode();
     init(vscode, document);
+    // folder must be indexed for trace interactions to be enabled
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "status", folderId: "", statusToken: "t", indexed: true, detail: "indexed", canStartWatcher: false },
+      }),
+    );
     (document.getElementById("trace-symbol") as HTMLInputElement).value = "search";
     (document.getElementById("trace-direction") as HTMLSelectElement).value = "graph";
     document.getElementById("trace-run")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
