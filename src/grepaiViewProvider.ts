@@ -198,7 +198,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       if (results.length > 0 && existingResults.length === 0) {
         this.results.clear();
         this.postError(
-          "GrepAI returned only files that are missing from this checkout. Refresh the GrepAI index or choose a different scope.",
+          "GrepAI returned only files that are missing from this folder. Refresh the GrepAI index (`grepai watch`).",
           message.folderId,
         );
         return;
