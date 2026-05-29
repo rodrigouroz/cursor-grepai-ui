@@ -3,8 +3,10 @@ import {
   findProjectForRoot,
   getDefaultProjects,
   mergeProjects,
+  mergeScopes,
   type WorkspaceProject,
 } from "./config";
+import { discoverWorkspaceScopes } from "./scopeDiscovery";
 import { isCurrentScopeConcrete } from "./statusContext";
 import {
   runGrepaiSearch,
@@ -48,7 +50,8 @@ type WebviewMessage =
       depth?: number;
       expandNodeId?: string;
     }
-  | { type: "openLocation"; id: string; mode?: OpenMode };
+  | { type: "openLocation"; id: string; mode?: OpenMode }
+  | { type: "refreshScopes" };
 
 export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   static readonly viewType = "grepaiSearch.view";
@@ -67,6 +70,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   private activeTraceAbort?: AbortController;
   private traceLocations = new Map<string, { filePath: string; line: number }>();
   private locationSeq = 0;
+  private discoveredScopes: WorkspaceProject[] = [];
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -97,6 +101,12 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
   private async handleMessage(message: WebviewMessage): Promise<void> {
     if (message.type === "ready") {
       this.postState();
+      void this.refreshScopes();
+      return;
+    }
+
+    if (message.type === "refreshScopes") {
+      await this.refreshScopes();
       return;
     }
 
@@ -140,7 +150,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       liveSearchDelayMs: config.get<number>("liveSearchDelayMs", 350),
       groupByFile: config.get<boolean>("groupByFile", true),
       traceMode: config.get<string>("traceMode", "precise"),
-      scopes: this.getScopeOptions(settings.projects).map((scope) => ({
+      scopes: this.getScopeOptions(this.allProjects()).map((scope) => ({
         id: scope.id,
         label: scope.label,
         concrete:
@@ -159,7 +169,8 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
     }
 
     const settings = this.getSettings();
-    const scopeOption = this.getScopeOptions(settings.projects).find(
+    const projects = this.allProjects();
+    const scopeOption = this.getScopeOptions(projects).find(
       (scope) => scope.id === message.scopeId,
     );
     if (!scopeOption) {
@@ -180,7 +191,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
     this.view?.webview.postMessage({ type: "searching" });
 
     try {
-      const searchScope = this.resolveSearchScope(scopeOption, cwd, settings.projects);
+      const searchScope = this.resolveSearchScope(scopeOption, cwd, projects);
 
       if (scopeOption.scope.kind === "current" && searchScope.kind === "current") {
         const status = await runGrepaiStatus({
@@ -198,7 +209,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       const results = await runGrepaiSearch({
         executablePath: settings.executablePath,
         cwd,
-        projects: settings.projects,
+        projects,
         query,
         limit: clampLimit(message.limit, settings.defaultLimit),
         scope: searchScope,
@@ -274,7 +285,8 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
     }
 
     const settings = this.getSettings();
-    const scopeOption = this.getScopeOptions(settings.projects).find((s) => s.id === message.scopeId);
+    const projects = this.allProjects();
+    const scopeOption = this.getScopeOptions(projects).find((s) => s.id === message.scopeId);
     if (!scopeOption) {
       this.postTraceError(message.traceRequestId, "Choose a valid scope to trace.");
       return;
@@ -285,7 +297,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       this.postTraceError(message.traceRequestId, "Choose a workspace folder before tracing.");
       return;
     }
-    const scope = this.resolveSearchScope(scopeOption, cwd, settings.projects);
+    const scope = this.resolveSearchScope(scopeOption, cwd, projects);
 
     const isRoot = !message.expandNodeId;
     if (isRoot) {
@@ -328,7 +340,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       if (message.direction === "graph") {
         const g = normalizeGraph(json);
         const nodes = g.nodes.map((n) => {
-          const id = this.addTraceLocation(n.file, n.line, cwd, settings.projects);
+          const id = this.addTraceLocation(n.file, n.line, cwd, projects);
           return {
             nodeId: id,
             name: n.name,
@@ -338,7 +350,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
           };
         });
         const edges = g.edges.map((e) => {
-          const id = this.addTraceLocation(e.file, e.line, cwd, settings.projects);
+          const id = this.addTraceLocation(e.file, e.line, cwd, projects);
           return { from: e.caller, to: e.callee, locationId: id, label: `${e.file}:${e.line}` };
         });
         this.view?.webview.postMessage({
@@ -355,7 +367,7 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
       const trace = normalizeCallerCallee(json, message.direction);
       const nodes = trace.entries.map((entry) => {
         const loc = entry.callSite ?? { file: entry.symbol.file, line: entry.symbol.line };
-        const id = this.addTraceLocation(loc.file, loc.line, cwd, settings.projects);
+        const id = this.addTraceLocation(loc.file, loc.line, cwd, projects);
         return {
           nodeId: id,
           name: entry.symbol.name,
@@ -393,7 +405,8 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
 
   private async refreshStatus(scopeId: string): Promise<void> {
     const settings = this.getSettings();
-    const scopeOption = this.getScopeOptions(settings.projects).find((s) => s.id === scopeId);
+    const projects = this.allProjects();
+    const scopeOption = this.getScopeOptions(projects).find((s) => s.id === scopeId);
     if (!scopeOption) return;
 
     try {
@@ -562,6 +575,18 @@ export class GrepaiViewProvider implements vscode.WebviewViewProvider {
         project,
       })),
     ];
+  }
+
+  private allProjects(): WorkspaceProject[] {
+    return mergeScopes(this.getSettings().projects, this.discoveredScopes);
+  }
+
+  async refreshScopes(): Promise<void> {
+    const settings = this.getSettings();
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const cwd = folders[0]?.uri.fsPath ?? process.cwd();
+    this.discoveredScopes = await discoverWorkspaceScopes(settings.executablePath, cwd);
+    this.postState();
   }
 
   private getSettings(): {

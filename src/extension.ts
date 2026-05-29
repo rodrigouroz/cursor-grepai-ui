@@ -8,6 +8,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("grepaiSearch.open", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.grepaiSearch");
     }),
+    vscode.commands.registerCommand("grepaiSearch.refreshScopes", () => provider.refreshScopes()),
   );
 }
 

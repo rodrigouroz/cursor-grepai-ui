@@ -26,6 +26,11 @@
         "command": "grepaiSearch.open",
         "title": "GrepAI: Open Search",
         "category": "GrepAI"
+      },
+      {
+        "command": "grepaiSearch.refreshScopes",
+        "title": "GrepAI: Refresh Scopes",
+        "category": "GrepAI"
       }
     ],
     "keybindings": [
