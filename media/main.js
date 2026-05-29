@@ -243,6 +243,7 @@ export function init(vscode, doc = document) {
 
   if (traceResultsEl) {
     traceResultsEl.addEventListener("click", (event) => {
+      if (!folderIndexed) return; // defense-in-depth: no trace actions on an unindexed folder
       const expand = event.target.closest(".trace-expand");
       if (expand) {
         sendTrace(expand.dataset.nodeId, expand.dataset.symbol);
